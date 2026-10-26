@@ -47,13 +47,20 @@ async function readSongs(file: string): Promise<Map<number, Song>> {
 
   const songs = new Map<number, Song>();
   const reader = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
+  let broken = 0;
 
   for await (const line of reader) {
     if (!line.trim()) continue;
-    const song = JSON.parse(line) as Song;
-    songs.set(song.id, song);
+    try {
+      const song = JSON.parse(line) as Song;
+      if (typeof song.id === 'number') songs.set(song.id, song);
+    } catch {
+      // обрыв записи (например, прерванный обход) — строку пропускаем
+      broken += 1;
+    }
   }
 
+  if (broken > 0) console.warn(`Пропущено повреждённых строк: ${broken}`);
   return songs;
 }
 
