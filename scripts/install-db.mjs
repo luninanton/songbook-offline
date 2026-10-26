@@ -7,7 +7,7 @@
  * В APK файл кладётся как assets/songs.db: Android Gradle Plugin сам распаковывает
  * .gz-ассеты при упаковке, поэтому сжатый вариант всё равно превращается в обычный файл.
  */
-import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const arg = (name, fallback) => {
@@ -28,6 +28,14 @@ if (!existsSync(source)) {
 
 mkdirSync(targetDir, { recursive: true });
 copyFileSync(source, target);
+
+// номер схемы базы: по нему приложение понимает, что старую базу надо заменить
+const schemaSource = source.replace(/\.db$/, '.schema');
+if (existsSync(schemaSource)) {
+  copyFileSync(schemaSource, resolve(targetDir, 'songs.schema'));
+} else {
+  writeFileSync(resolve(targetDir, 'songs.schema'), '1');
+}
 
 const sizeMb = (file) => (statSync(file).size / 1e6).toFixed(1);
 console.log(`База скопирована: ${source} (${sizeMb(source)} МБ) → ${target} (${sizeMb(target)} МБ)`);

@@ -34,7 +34,7 @@ if ! avdmanager list avd | grep -q "Name: $AVD"; then
 fi
 
 echo "Запускаю эмулятор $AVD…"
-emulator -avd "$AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+emulator -avd "$AVD" -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
   -netdelay none -netspeed full > "/tmp/emulator-$DEVICE.log" 2>&1 &
 EMULATOR_PID=$!
 

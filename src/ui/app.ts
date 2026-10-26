@@ -11,6 +11,10 @@ import { renderHome } from './home';
 import { renderSettings } from './settings';
 import { renderSong } from './song';
 import { renderSongForm } from './song-form';
+import { loadUserSongs, upsertUserSong } from '../app/user-songs';
+import { hasChords } from '../core/chords';
+import { hashText } from '../core/hash';
+import type { Song } from '../core/types';
 
 export interface AppContext {
   repo: SongRepository;
@@ -116,6 +120,15 @@ export async function mountApp(root: HTMLElement): Promise<void> {
     badge.title = error instanceof Error ? error.message : String(error);
   }
 
+  // Свои песни хранятся в localStorage: после переустановки базы досылаем их обратно
+  for (const song of loadUserSongs()) {
+    try {
+      await repo.saveUserSong(song);
+    } catch {
+      // база может быть ещё не готова — песня останется в localStorage
+    }
+  }
+
   function paint(): void {
     const width = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
     const layout = layoutClass(width);
@@ -165,9 +178,27 @@ export async function mountApp(root: HTMLElement): Promise<void> {
             paint();
           },
           onSave: async (input) => {
-            const id = await repo.addSong(input);
+            const text = input.text.replace(/\r\n?/g, '\n').trimEnd();
+            const song: Song = {
+              id: Date.now(),
+              origin: 'user',
+              title: input.title.trim() || 'Без названия',
+              artist: input.artist.trim() || 'Своя песня',
+              artistId: null,
+              album: null,
+              albumId: null,
+              key: input.key.trim(),
+              text,
+              hasChords: hasChords(text),
+              lang: 'ru',
+              publishedAt: null,
+              modifiedAt: new Date().toISOString(),
+              hash: hashText(`${input.key}\n${text}`),
+            };
+            await repo.saveUserSong(song);
+            upsertUserSong(song);
             formOpen = false;
-            currentSongId = id;
+            currentSongId = song.id;
             view = 'song';
             paint();
           },

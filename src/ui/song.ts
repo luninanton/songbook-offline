@@ -1,6 +1,7 @@
 import { detectNotation, isChordLine, noteToSemitone } from '../core/chords';
 import { renderSong as buildSongView, transposeKey } from '../core/transpose';
 import { toggleFavorite } from '../app/settings';
+import { removeUserSong } from '../app/user-songs';
 import { fetchSong } from '../app/site-refresh';
 import type { SongFull } from '../db/types';
 import type { AppContext } from './app';
@@ -202,6 +203,7 @@ function paint(
   root.querySelector<HTMLButtonElement>('#delete-song')?.addEventListener('click', () => {
     if (!window.confirm('Удалить эту песню из базы?')) return;
     void (async () => {
+      removeUserSong(song.id);
       await context.repo.deleteSong(song.id);
       context.onBack();
     })();

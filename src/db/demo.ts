@@ -1,3 +1,4 @@
+import type { Song } from '../core/types';
 import type {
   DbMeta,
   NewSongInput,
@@ -159,6 +160,13 @@ export class DemoRepository implements SongRepository {
       text,
     });
     return id;
+  }
+
+  async saveUserSong(song: Song): Promise<void> {
+    const index = DEMO_SONGS.findIndex((item) => item.id === song.id);
+    const entry: DemoSong = { ...song, origin: 'user' };
+    if (index >= 0) DEMO_SONGS[index] = entry;
+    else DEMO_SONGS.push(entry);
   }
 
   async deleteSong(id: number): Promise<void> {

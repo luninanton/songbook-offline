@@ -157,6 +157,15 @@ export class NativeRepository implements SongRepository {
     return id;
   }
 
+  async saveUserSong(song: Song): Promise<void> {
+    const db = await this.database();
+    await applyDeltaTo(
+      db,
+      { fromVersion: '', toVersion: '', songs: [{ ...song, origin: 'user' }], removed: [] },
+      { updateMeta: false },
+    );
+  }
+
   async deleteSong(id: number): Promise<void> {
     const db = await this.database();
     await db.run("DELETE FROM songs WHERE id = ? AND origin = 'user'", [id]);

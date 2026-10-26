@@ -1,4 +1,5 @@
 import type { DeltaPack } from '../core/update';
+import type { Song } from '../core/types';
 
 /** Модели для UI и слоя данных. */
 export interface SongRow {
@@ -66,6 +67,8 @@ export interface SongRepository {
   writeDelta(pack: DeltaPack): Promise<WriteResult>;
   /** Добавляет песню, введённую вручную; возвращает её id */
   addSong(input: NewSongInput): Promise<number>;
+  /** Записывает свою песню с сохранением id (используется при восстановлении) */
+  saveUserSong(song: Song): Promise<void>;
   /** Удаляет песню, добавленную вручную */
   deleteSong(id: number): Promise<void>;
 }

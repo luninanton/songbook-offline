@@ -19,7 +19,7 @@ import { pipeline } from 'node:stream/promises';
 import { normalizeForSearch } from '../src/core/normalize';
 import type { Song } from '../src/core/types';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface Options {
   input: string;
@@ -190,6 +190,10 @@ async function main(): Promise<void> {
     gzSha256: await sha256(gzPath),
   };
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+  // Маркер схемы: по нему приложение понимает, что базу из APK надо переустановить
+  await writeFile(options.out.replace(/\.db$/, '') + '.schema', String(SCHEMA_VERSION), 'utf8');
+  // Маркер схемы: приложение по нему понимает, что базу в APK надо переустановить
+  await writeFile(options.out.replace(/\.db$/, '') + '.schema', String(SCHEMA_VERSION), 'utf8');
 
   console.log('\nГотово:');
   console.log(`  песен: ${songs.size} (с аккордами ${withChords})`);
