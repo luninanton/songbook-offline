@@ -1,5 +1,6 @@
 import type { NewSongInput } from '../db/types';
 import { chordLines, detectNotation } from '../core/chords';
+import { detectKeyFromText, normalizeSongText } from '../core/song-text';
 import { escapeHtml } from './html';
 
 /** Тональности для выбора (пустая = не указана) */
@@ -15,6 +16,8 @@ export interface SongFormValues {
 export interface SongFormCallbacks {
   /** Заполненные поля — для редактирования существующей песни */
   initial?: SongFormValues;
+  /** Проверка дубля по названию (для новых песен) */
+  checkDuplicate?: (title: string) => Promise<{ title: string; artist: string } | null>;
   onCancel: () => void;
   onSave: (input: NewSongInput) => Promise<void>;
 }
@@ -54,6 +57,10 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
           placeholder="Am        C&#10;строка текста&#10;        G          F&#10;ещё строка"></textarea>
       </label>
 
+      <div class="settings__actions">
+        <button class="button button--ghost" id="normalize" type="button">Нормализовать текст</button>
+      </div>
+
       <p class="settings__text settings__text--muted" id="form-status">
         Аккорды пишите отдельной строкой над словами — приложение само определит их и включит транспонирование.
       </p>
@@ -84,6 +91,8 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
   requireEl<HTMLButtonElement>(root, '#cancel-2').addEventListener('click', cancel);
 
   // Живая подсказка: показываем, что аккорды распознаны (и сколько строк)
+  let keyTouched = Boolean(callbacks.initial?.key);
+
   const updateHint = (): void => {
     const text = textArea.value;
     if (!text.trim()) {
@@ -94,16 +103,44 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
 
     const notation = detectNotation(text);
     const count = chordLines(text, notation).length;
+    const detected = detectKeyFromText(text);
+
+    // Тональность подставляем сами, пока пользователь не выбрал её вручную
+    if (detected && !keyTouched) {
+      if (![...keySelect.options].some((option) => option.value === detected)) {
+        const option = document.createElement('option');
+        option.value = detected;
+        option.textContent = detected;
+        keySelect.append(option);
+      }
+      keySelect.value = detected;
+    }
+
+    const keyNote = detected ? ` Тональность по первому аккорду: <strong>${escapeHtml(detected)}</strong>.` : '';
 
     status.innerHTML =
       count > 0
-        ? `<strong>Аккорды распознаны:</strong> ${count} ${plural(count, 'строка', 'строки', 'строк')}. ` +
-          'Транспонирование, капо и подсветка будут работать.'
+        ? `<strong>Аккорды распознаны:</strong> ${count} ${plural(count, 'строка', 'строки', 'строк')}.` +
+          `${keyNote} Транспонирование, капо и подсветка будут работать.`
         : 'Аккорды не найдены — песня сохранится как текст. Если нужны аккорды, добавьте строку над словами, например <code>Am   C</code>.';
   };
 
+  keySelect.addEventListener('change', () => {
+    keyTouched = true;
+  });
+
   textArea.addEventListener('input', updateHint);
   updateHint();
+
+  requireEl<HTMLButtonElement>(root, '#normalize').addEventListener('click', () => {
+    const before = textArea.value;
+    const after = normalizeSongText(before);
+    textArea.value = after;
+    updateHint();
+    if (before === after) {
+      status.innerHTML = 'Текст уже в порядке: табов и лишних пустых строк нет.';
+    }
+  });
 
   const save = (): void => {
     void (async () => {
@@ -124,6 +161,21 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
       saveButton.disabled = true;
       status.textContent = 'Сохраняю…';
       try {
+        // Предупреждаем о дубле по названию (только для новых песен)
+        if (!callbacks.initial && callbacks.checkDuplicate) {
+          const duplicate = await callbacks.checkDuplicate(title);
+          if (
+            duplicate &&
+            !window.confirm(
+              `Такая песня уже есть:\n«${duplicate.title}» — ${duplicate.artist}\n\nВсё равно добавить ещё одну?`,
+            )
+          ) {
+            saveButton.disabled = false;
+            status.textContent = 'Добавление отменено: песня с таким названием уже есть';
+            return;
+          }
+        }
+
         await callbacks.onSave({
           title,
           artist: artistInput.value.trim(),

@@ -8,7 +8,7 @@ import type {
   SongRepository,
   WriteResult,
 } from './types';
-import { buildFtsQueries } from '../core/normalize';
+import { buildFtsQueries, normalizeForSearch } from '../core/normalize';
 import type { DeltaPack } from '../core/update';
 import type { Song } from '../core/types';
 import { hasChords } from '../core/chords';
@@ -21,6 +21,7 @@ import {
   buildOrderWithTitlePriority,
   buildSearchFts,
   buildSearchPlain,
+  FIND_BY_TITLE_SQL,
   GET_SONG_SQL,
   MAX_ID_SQL,
   META_SQL,
@@ -164,6 +165,13 @@ export class NativeRepository implements SongRepository {
       { fromVersion: '', toVersion: '', songs: [{ ...song, origin: 'user' }], removed: [] },
       { updateMeta: false },
     );
+  }
+
+  async findDuplicate(title: string): Promise<ReturnType<typeof mapRow> | null> {
+    const db = await this.database();
+    const result = await db.query(FIND_BY_TITLE_SQL, [normalizeForSearch(title)]);
+    const row = ((result.values ?? [])[0] as SongRecord | undefined) ?? null;
+    return row ? mapRow(row) : null;
   }
 
   async deleteSong(id: number): Promise<void> {

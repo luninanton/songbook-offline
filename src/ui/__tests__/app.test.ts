@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp } from '../app';
 import { DEFAULT_SETTINGS } from '../../app/settings';
 
@@ -174,4 +174,75 @@ describe('ui: редактирование своей песни', () => {
 
     expect(root.querySelectorAll('.song-row').length).toBe(1);
   });
+
+describe('ui: подсказки в форме своей песни', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('подставляет тональность по первому аккорду', async () => {
+    const root = await mount();
+    (root.querySelector('#add-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    const text = document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement;
+    text.value = 'Dm      Bb' + '\n' + 'строка раз';
+    text.dispatchEvent(new Event('input'));
+
+    expect((document.querySelector('#key') as HTMLSelectElement).value).toBe('Dm');
+    expect(document.querySelector('#form-status')?.textContent).toContain('Dm');
+  });
+
+  it('не перебивает тональность, выбранную вручную', async () => {
+    const root = await mount();
+    (root.querySelector('#add-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    const keySelect = document.querySelector('#key') as HTMLSelectElement;
+    keySelect.value = 'G';
+    keySelect.dispatchEvent(new Event('change'));
+
+    const text = document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement;
+    text.value = 'Am   C' + '\n' + 'строка';
+    text.dispatchEvent(new Event('input'));
+
+    expect(keySelect.value).toBe('G');
+  });
+
+  it('нормализует табы и лишние пустые строки', async () => {
+    const root = await mount();
+    (root.querySelector('#add-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    const text = document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement;
+    text.value = 'Am\t\tC\n\n\n\nстрока   \n\n';
+    (document.querySelector('#normalize') as HTMLButtonElement).click();
+
+    expect(text.value).toBe('Am        C\n\nстрока');
+  });
+
+  it('предупреждает о дубле и не сохраняет при отказе', async () => {
+    const root = await mount();
+
+    const addSong = async (title: string): Promise<void> => {
+      (root.querySelector('#add-song') as HTMLButtonElement).click();
+      await new Promise((done) => setTimeout(done, 30));
+      (document.querySelector('#title') as HTMLInputElement).value = title;
+      (document.querySelector('#text') as HTMLTextAreaElement).value = 'Am  C' + '\n' + 'строка';
+      (document.querySelector('#save') as HTMLButtonElement).click();
+      await new Promise((done) => setTimeout(done, 60));
+    };
+
+    await addSong('Дубль тест');
+    const rowsBefore = document.querySelectorAll('.song-row').length;
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await addSong('Дубль тест');
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(document.querySelector('#form-status')?.textContent).toContain('уже есть');
+    expect(document.querySelectorAll('.song-row').length).toBe(rowsBefore);
+  });
+});
+
 });

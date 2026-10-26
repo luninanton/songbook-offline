@@ -190,6 +190,10 @@ export async function mountApp(root: HTMLElement): Promise<void> {
                 text: formSong.text,
               }
             : undefined,
+          checkDuplicate: async (title) => {
+            const duplicate = await repo.findDuplicate(title);
+            return duplicate ? { title: duplicate.title, artist: duplicate.artist } : null;
+          },
           onCancel: () => {
             formOpen = false;
             formSong = null;

@@ -69,6 +69,8 @@ export interface SongRepository {
   addSong(input: NewSongInput): Promise<number>;
   /** Записывает свою песню с сохранением id (используется при восстановлении) */
   saveUserSong(song: Song): Promise<void>;
+  /** Ищет песню с таким же названием — для предупреждения о дубле */
+  findDuplicate(title: string): Promise<SongRow | null>;
   /** Удаляет песню, добавленную вручную */
   deleteSong(id: number): Promise<void>;
 }

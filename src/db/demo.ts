@@ -1,4 +1,5 @@
 import type { Song } from '../core/types';
+import { normalizeForSearch } from '../core/normalize';
 import type {
   DbMeta,
   NewSongInput,
@@ -167,6 +168,12 @@ export class DemoRepository implements SongRepository {
     const entry: DemoSong = { ...song, origin: 'user' };
     if (index >= 0) DEMO_SONGS[index] = entry;
     else DEMO_SONGS.push(entry);
+  }
+
+  async findDuplicate(title: string): Promise<ReturnType<typeof toRow> | null> {
+    const normalized = normalizeForSearch(title);
+    const song = DEMO_SONGS.find((item) => normalizeForSearch(item.title) === normalized);
+    return song ? toRow(song) : null;
   }
 
   async deleteSong(id: number): Promise<void> {

@@ -92,6 +92,9 @@ export const ALL_HASHES_SQL = "SELECT id, hash FROM songs WHERE origin = 'site'"
 
 export const META_SQL = 'SELECT key, value FROM meta';
 
+export const FIND_BY_TITLE_SQL =
+  'SELECT id, title, artist, album, key, has_chords FROM songs WHERE title_norm = ? LIMIT 1';
+
 // Свои песни живут в диапазоне от 1 000 000, чтобы не пересечься с id сайта
 export const NEXT_USER_ID_SQL =
   'SELECT COALESCE(MAX(id), 1000000) + 1 AS nextId FROM songs WHERE id >= 1000000';
