@@ -1,6 +1,7 @@
 import type { AppContext } from './app';
 import { escapeHtml } from './html';
 import { fetchNewSongs } from '../app/site-sync';
+import { describeDelta, readDeltaFile } from '../app/update-file';
 import {
   parseDeltaPack,
   parseManifest,
@@ -73,6 +74,8 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
 
         <div class="settings__actions">
           <button class="button" id="sync-site" type="button">Новые песни с сайта</button>
+          <button class="button" id="import-file" type="button">Обновить из файла</button>
+          <input id="delta-file" type="file" accept=".gz,application/gzip" hidden />
         </div>
         <p class="settings__text settings__text--muted" id="sync-status"></p>
       </div>
@@ -128,6 +131,8 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
   const updateStatus = requireEl<HTMLElement>(root, '#update-status');
   const syncButton = requireEl<HTMLButtonElement>(root, '#sync-site');
   const syncStatus = requireEl<HTMLElement>(root, '#sync-status');
+  const importButton = requireEl<HTMLButtonElement>(root, '#import-file');
+  const fileInput = requireEl<HTMLInputElement>(root, '#delta-file');
 
   manifestInput.value = localStorage.getItem(MANIFEST_KEY) ?? DEFAULT_MANIFEST_URL;
   manifestInput.addEventListener('change', () => {
@@ -203,6 +208,32 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
         syncStatus.textContent = `Не удалось обновить с сайта: ${errorMessage(error)}`;
       } finally {
         syncButton.disabled = false;
+      }
+    })();
+  });
+
+  // ---------- импорт пакета обновления из файла (без хостинга) ----------
+  importButton.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    void (async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+
+      importButton.disabled = true;
+      syncStatus.textContent = `Читаю ${file.name}…`;
+      try {
+        const pack = await readDeltaFile(file);
+        syncStatus.textContent = `Применяю: ${describeDelta(pack)}…`;
+        const result = await applyDelta(pack);
+        syncStatus.textContent =
+          `Готово: обновлено ${result.upserted}, удалено ${result.removed}, всего ${result.total}.`;
+        context.meta = await context.repo.meta();
+      } catch (error) {
+        syncStatus.textContent = `Не удалось применить файл: ${errorMessage(error)}`;
+      } finally {
+        importButton.disabled = false;
+        fileInput.value = '';
       }
     })();
   });
