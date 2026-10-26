@@ -35,7 +35,7 @@ const NOTE_TO_PC: Record<string, number> = {
 };
 
 /** Регулярка аккорда: корень + модификаторы + необязательный бас после слэша */
-const CHORD_RE = /^([A-H](?:#|b)?)((?:maj|min|m|M|dim|aug|sus|add|\+|-|\d|°|ø|\(|\)|\/)*)(?:\/([A-H](?:#|b)?))?$/;
+const CHORD_RE = /^([A-H](?:#|b)?)((?:maj|min|m|M|dim|aug|sus|add|no|\+|-|\d|#|b|°|ø|\(|\))*)(?:\/([A-H](?:#|b)?))?$/;
 
 /** Служебные пометки, которые в базе стоят в аккордовых строках */
 const SECTION_WORDS = new Set([
@@ -66,10 +66,13 @@ export interface ParsedChord {
   raw: string;
   /** Корень в нормализованном виде (H → B, B → Bb) */
   root: string;
-  /** Модификаторы (m, maj7, sus4 ...) в исходном виде */
+  /** Модификаторы (m, maj7, sus4, m7b5 ...) в исходном виде */
   suffix: string;
   /** Бас после слэша, нормализованный */
   bass: string | null;
+  /** Полутон корня (0 = C). Считается сразу, чтобы не нормализовать дважды */
+  rootSemitone: number;
+  bassSemitone: number | null;
 }
 
 /** Приводит ноту к международной нотации */
@@ -105,15 +108,23 @@ export function parseChordToken(token: string, notation: Notation = 'german'): P
   const match = CHORD_RE.exec(cleaned);
   if (!match) return null;
 
-  const root = normalizeNote(match[1] as string, notation);
-  if (noteToSemitone(root, notation) === null) return null;
+  const rootRaw = match[1] as string;
+  const root = normalizeNote(rootRaw, notation);
+  // noteToSemitone сам нормализует ноту, поэтому передаём исходную запись
+  const rootSemitone = noteToSemitone(rootRaw, notation);
+  if (rootSemitone === null) return null;
 
   const bassRaw = match[3];
+  const bass = bassRaw ? normalizeNote(bassRaw, notation) : null;
+  const bassSemitone = bassRaw ? noteToSemitone(bassRaw, notation) : null;
+
   return {
     raw: token,
     root,
     suffix: match[2] ?? '',
-    bass: bassRaw ? normalizeNote(bassRaw, notation) : null,
+    bass,
+    rootSemitone,
+    bassSemitone,
   };
 }
 
