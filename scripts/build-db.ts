@@ -74,34 +74,6 @@ function sha256(file: string): Promise<string> {
   });
 }
 
-const SCHEMA_SQL = `
-  CREATE TABLE songs (
-    id INTEGER PRIMARY KEY,
-    title TEXT NOT NULL,
-    title_norm TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    artist_norm TEXT NOT NULL,
-    artist_id INTEGER,
-    album TEXT,
-    album_id INTEGER,
-    key TEXT NOT NULL,
-    text TEXT NOT NULL,
-    has_chords INTEGER NOT NULL,
-    lang TEXT NOT NULL,
-    published_at TEXT,
-    modified_at TEXT,
-    hash TEXT NOT NULL
-  );
-  CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-`;
-
-const INSERT_SQL = `
-  INSERT INTO songs (id, title, title_norm, artist, artist_norm, artist_id, album, album_id,
-                     key, text, has_chords, lang, published_at, modified_at, hash)
-  VALUES (@id, @title, @title_norm, @artist, @artist_norm, @artist_id, @album, @album_id,
-          @key, @text, @has_chords, @lang, @published_at, @modified_at, @hash)
-`;
-
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
@@ -119,9 +91,34 @@ async function main(): Promise<void> {
   const db = new Database(options.out);
   db.pragma('journal_mode = OFF');
   db.pragma('synchronous = OFF');
-  db.exec(SCHEMA_SQL);
+  db.exec(`
+    CREATE TABLE songs (
+      id INTEGER PRIMARY KEY,
+      origin TEXT NOT NULL DEFAULT 'site',
+      title TEXT NOT NULL,
+      title_norm TEXT NOT NULL,
+      artist TEXT NOT NULL,
+      artist_norm TEXT NOT NULL,
+      artist_id INTEGER,
+      album TEXT,
+      album_id INTEGER,
+      key TEXT NOT NULL,
+      text TEXT NOT NULL,
+      has_chords INTEGER NOT NULL,
+      lang TEXT NOT NULL,
+      published_at TEXT,
+      modified_at TEXT,
+      hash TEXT NOT NULL
+    );
+    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `);
 
-  const insert = db.prepare(INSERT_SQL);
+  const insert = db.prepare(`
+    INSERT INTO songs (id, origin, title, title_norm, artist, artist_norm, artist_id, album, album_id,
+                       key, text, has_chords, lang, published_at, modified_at, hash)
+    VALUES (@id, 'site', @title, @title_norm, @artist, @artist_norm, @artist_id, @album, @album_id,
+            @key, @text, @has_chords, @lang, @published_at, @modified_at, @hash)
+  `);
   const insertAll = db.transaction((items: Song[]) => {
     for (const song of items) {
       insert.run({

@@ -69,7 +69,7 @@ check('всего песен', total.value > 0, `${total.value}`);
 
 // 4. Избранное — фильтр по списку id
 const favorites = plain.value.slice(0, 2).map((row) => Number(row.id));
-const favList = buildSearchPlain(orderByClause('title', false), 20, 0, favorites);
+const favList = buildSearchPlain(orderByClause('title', false), 20, 0, { favorites });
 const favRows = db.prepare(favList.sql).all(...(favList.params as never[])) as Array<Record<string, unknown>>;
 check('избранное', favRows.length === favorites.length, `${favRows.length} из ${favorites.length}`);
 
@@ -86,9 +86,18 @@ const ftsTotal = (db.prepare(ftsCount.sql).get(...(ftsCount.params as never[])) 
 check('счётчик FTS', ftsTotal >= fts.value.length, `${ftsTotal}`);
 
 // 6. Поиск по названию + избранное одновременно
-const ftsFav = buildSearchFts(ftsQuery, orderByClause('title', true), 20, 0, favorites);
+const ftsFav = buildSearchFts(ftsQuery, orderByClause('title', true), 20, 0, { favorites });
 const ftsFavRows = db.prepare(ftsFav.sql).all(...(ftsFav.params as never[])) as Array<Record<string, unknown>>;
 check('FTS + избранное', Array.isArray(ftsFavRows), `${ftsFavRows.length} строк`);
+
+// 6b. Фильтр «только с аккордами»
+const chordsOnly = buildCountPlain({ hasChordsOnly: true });
+const chordsOnlyTotal = (db.prepare(chordsOnly.sql).get(...(chordsOnly.params as never[])) as { c: number }).c;
+check(
+  'фильтр «с аккордами»',
+  chordsOnlyTotal > 0 && chordsOnlyTotal < total.value,
+  `${chordsOnlyTotal} из ${total.value}`,
+);
 
 // 7. Чтение одной песни
 const songId = Number(plain.value[0]?.id ?? 0);

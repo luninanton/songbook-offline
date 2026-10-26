@@ -43,6 +43,11 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
         <span class="field__label">Показывать аккорды</span>
       </label>
 
+      <label class="field field--row">
+        <input type="checkbox" id="highlight-chords" ${settings.highlightChords ? 'checked' : ''} />
+        <span class="field__label">Подсвечивать аккорды цветом</span>
+      </label>
+
       <div class="settings__section">
         <h3 class="settings__subtitle">База песен</h3>
         <p class="settings__text" id="db-info">—</p>
@@ -124,6 +129,11 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
 
   chordsCheckbox.addEventListener('change', () => {
     context.onSettingsChange({ showChords: chordsCheckbox.checked });
+  });
+
+  const highlightCheckbox = requireEl<HTMLInputElement>(root, '#highlight-chords');
+  highlightCheckbox.addEventListener('change', () => {
+    context.onSettingsChange({ highlightChords: highlightCheckbox.checked });
   });
 
   // ---------- обновление с сайта ----------

@@ -1,17 +1,31 @@
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
-import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository, WriteResult } from './types';
-import { toFtsQuery } from '../core/normalize';
+import type {
+  DbMeta,
+  NewSongInput,
+  SongFull,
+  SongPage,
+  SongQuery,
+  SongRepository,
+  WriteResult,
+} from './types';
+import { buildFtsQueries } from '../core/normalize';
 import type { DeltaPack } from '../core/update';
+import type { Song } from '../core/types';
+import { hasChords } from '../core/chords';
+import { hashText } from '../core/hash';
 import { applyDeltaTo } from './updater';
 import {
   ALL_HASHES_SQL,
   buildCountFts,
   buildCountPlain,
+  buildOrderWithTitlePriority,
   buildSearchFts,
   buildSearchPlain,
   GET_SONG_SQL,
   MAX_ID_SQL,
   META_SQL,
+  NEXT_USER_ID_SQL,
+  REBUILD_FTS_SQL,
   orderByClause,
 } from './queries';
 
@@ -66,22 +80,32 @@ export class NativeRepository implements SongRepository {
     const limit = params.limit ?? 50;
     const offset = params.offset ?? 0;
     const query = (params.query ?? '').trim();
-    const ftsQuery = query ? toFtsQuery(query) : '';
-    const favorites = params.favoritesOnly ? (params.favorites ?? []) : undefined;
+    const filters = {
+      favorites: params.favoritesOnly ? (params.favorites ?? []) : undefined,
+      hasChordsOnly: params.hasChordsOnly,
+    };
 
-    if (ftsQuery) {
-      const list = buildSearchFts(ftsQuery, orderByClause(params.sort, true), limit, offset, favorites);
-      const count = buildCountFts(ftsQuery, favorites);
-      const rows = await db.query(list.sql, list.params);
-      const total = await db.query(count.sql, count.params);
-      return {
-        items: ((rows.values ?? []) as SongRecord[]).map(mapRow),
-        total: Number(((total.values ?? [])[0] as { c: number } | undefined)?.c ?? 0),
-      };
+    if (query) {
+      // Сначала строгий запрос (все слова), затем мягкий (любое из слов)
+      for (const ftsQuery of buildFtsQueries(query)) {
+        const orderBy = buildOrderWithTitlePriority(params.sort, query);
+        const list = buildSearchFts(ftsQuery, orderBy.sql, limit, offset, filters);
+        const rows = await db.query(list.sql, [...orderBy.params, ...list.params]);
+        if ((rows.values ?? []).length > 0) {
+          const count = buildCountFts(ftsQuery, filters);
+          const total = await db.query(count.sql, count.params);
+          return {
+            items: ((rows.values ?? []) as SongRecord[]).map(mapRow),
+            total: Number(((total.values ?? [])[0] as { c: number } | undefined)?.c ?? 0),
+          };
+        }
+      }
+
+      return { items: [], total: 0 };
     }
 
-    const list = buildSearchPlain(orderByClause(params.sort, false), limit, offset, favorites);
-    const count = buildCountPlain(favorites);
+    const list = buildSearchPlain(orderByClause(params.sort, false), limit, offset, filters);
+    const count = buildCountPlain(filters);
     const rows = await db.query(list.sql, list.params);
     const total = await db.query(count.sql, count.params);
     return {
@@ -93,9 +117,53 @@ export class NativeRepository implements SongRepository {
   async get(id: number): Promise<SongFull | null> {
     const db = await this.database();
     const result = await db.query(GET_SONG_SQL, [id]);
-    const row = ((result.values ?? [])[0] as (SongRecord & { text: string }) | undefined) ?? null;
+    const row =
+      ((result.values ?? [])[0] as (SongRecord & { text: string; origin: string }) | undefined) ??
+      null;
     if (!row) return null;
-    return { ...mapRow(row), text: row.text };
+    return { ...mapRow(row), text: row.text, origin: row.origin === 'user' ? 'user' : 'site' };
+  }
+
+  async addSong(input: NewSongInput): Promise<number> {
+    const db = await this.database();
+    const next = await db.query(NEXT_USER_ID_SQL);
+    const id = Number(((next.values ?? [])[0] as { nextId: number } | undefined)?.nextId ?? 1_000_001);
+
+    const text = input.text.replace(/\r\n?/g, '\n').trimEnd();
+    const song: Song = {
+      id,
+      origin: 'user',
+      title: input.title.trim() || 'Без названия',
+      artist: input.artist.trim() || 'Своя песня',
+      artistId: null,
+      album: null,
+      albumId: null,
+      key: input.key.trim(),
+      text,
+      hasChords: hasChords(text),
+      lang: 'ru',
+      publishedAt: null,
+      modifiedAt: new Date().toISOString(),
+      hash: hashText(`${input.key}\n${text}`),
+    };
+
+    await applyDeltaTo(db, {
+      fromVersion: '',
+      toVersion: new Date().toISOString().slice(0, 10),
+      songs: [song],
+      removed: [],
+    }, { updateMeta: false });
+
+    return id;
+  }
+
+  async deleteSong(id: number): Promise<void> {
+    const db = await this.database();
+    await db.run("DELETE FROM songs WHERE id = ? AND origin = 'user'", [id]);
+    await db.execute(REBUILD_FTS_SQL);
+    const total = await db.query('SELECT COUNT(*) AS c FROM songs');
+    const count = Number(((total.values ?? [])[0] as { c: number } | undefined)?.c ?? 0);
+    await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', ['count', String(count)]);
   }
 
   async maxId(): Promise<number> {

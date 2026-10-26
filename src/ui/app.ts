@@ -10,6 +10,7 @@ import type { DbMeta, SongRepository } from '../db/types';
 import { renderHome } from './home';
 import { renderSettings } from './settings';
 import { renderSong } from './song';
+import { renderSongForm } from './song-form';
 
 export interface AppContext {
   repo: SongRepository;
@@ -22,6 +23,8 @@ export interface AppContext {
   onCloseSettings: () => void;
   onSettingsChange: (patch: Partial<Settings>) => void;
   onFavoritesChange: (ids: number[]) => void;
+  /** Открыть форму добавления своей песни */
+  onAddSong: () => void;
 }
 
 type View = 'home' | 'song' | 'settings';
@@ -57,6 +60,7 @@ export async function mountApp(root: HTMLElement): Promise<void> {
 
   const repo = await getRepository();
   let view: View = 'home';
+  let formOpen = false;
   let favorites = safeFavorites();
   let meta: DbMeta | null = null;
   let currentSongId: number | null = null;
@@ -92,6 +96,10 @@ export async function mountApp(root: HTMLElement): Promise<void> {
     onFavoritesChange: (ids) => {
       favorites = ids;
       context.favorites = ids;
+      paint();
+    },
+    onAddSong: () => {
+      formOpen = true;
       paint();
     },
   };
@@ -132,17 +140,39 @@ export async function mountApp(root: HTMLElement): Promise<void> {
       if (slot) renderSong(slot, context, currentSongId, isCompact);
     }
 
-    if (view === 'settings') {
+    if (view === 'settings' || formOpen) {
       const overlay = document.createElement('div');
       overlay.className = 'overlay';
       const panel = document.createElement('div');
       panel.className = 'overlay__panel';
       overlay.append(panel);
       overlay.addEventListener('click', (event) => {
-        if (event.target === overlay) context.onCloseSettings();
+        if (event.target !== overlay) return;
+        if (view === 'settings') context.onCloseSettings();
+        else {
+          formOpen = false;
+          paint();
+        }
       });
       document.body.append(overlay);
-      renderSettings(panel, context);
+
+      if (view === 'settings') {
+        renderSettings(panel, context);
+      } else {
+        renderSongForm(panel, {
+          onCancel: () => {
+            formOpen = false;
+            paint();
+          },
+          onSave: async (input) => {
+            const id = await repo.addSong(input);
+            formOpen = false;
+            currentSongId = id;
+            view = 'song';
+            paint();
+          },
+        });
+      }
       requestAnimationFrame(() => overlay.classList.add('overlay--visible'));
     } else {
       document.querySelectorAll('.overlay').forEach((element) => element.remove());

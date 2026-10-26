@@ -59,6 +59,7 @@ function paint(
           <h1 class="song__title" id="song-title"></h1>
           <div class="song__meta" id="song-meta"></div>
         </div>
+        ${song.origin === 'user' ? '<button class="icon-button" id="delete-song" title="Удалить свою песню" aria-label="Удалить">🗑</button>' : ''}
         <button class="icon-button" id="refresh-song" title="Обновить песню с сайта" aria-label="Обновить песню с сайта">⟳</button>
         <button class="icon-button" id="favorite" title="В избранное" aria-label="В избранное">☆</button>
       </div>
@@ -125,7 +126,10 @@ function paint(
           .filter((line) => !isChordLine(line, notation))
           .join('\n');
 
-    textEl.innerHTML = songTextHtml(text);
+    textEl.innerHTML = songTextHtml(text, {
+      highlightChords: context.settings.highlightChords,
+      notation,
+    });
     textEl.style.fontSize = `${fontSize}px`;
     textEl.style.columnCount = String(context.settings.columns);
     toggleChordsBtn.classList.toggle('button--toggle-on', showChords);
@@ -192,6 +196,15 @@ function paint(
   favoriteBtn.addEventListener('click', () => {
     context.onFavoritesChange(toggleFavorite(song.id));
     update();
+  });
+
+  // ---------- удаление своей песни ----------
+  root.querySelector<HTMLButtonElement>('#delete-song')?.addEventListener('click', () => {
+    if (!window.confirm('Удалить эту песню из базы?')) return;
+    void (async () => {
+      await context.repo.deleteSong(song.id);
+      context.onBack();
+    })();
   });
 
   // ---------- обновление одной песни с сайта ----------

@@ -5,6 +5,7 @@ export interface Settings {
   fontSize: number;
   columns: 1 | 2 | 3;
   showChords: boolean;
+  highlightChords: boolean;
   wifiOnlyUpdates: boolean;
 }
 
@@ -20,9 +21,10 @@ const PLAYLISTS_KEY = 'hc.playlists.v1';
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
-  fontSize: 16,
+  fontSize: 18,
   columns: 1,
   showChords: true,
+  highlightChords: true,
   wifiOnlyUpdates: true,
 };
 

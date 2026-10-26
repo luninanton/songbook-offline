@@ -1,11 +1,16 @@
-import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository, WriteResult } from './types';
+import type {
+  DbMeta,
+  NewSongInput,
+  SongFull, SongPage, SongQuery, SongRepository, WriteResult } from './types';
 
 /**
  * Демо-репозиторий для запуска в браузере (npm run dev) без собранной базы.
  * Тексты песен здесь вымышленные — это не реальные песни, а тестовые заглушки
  * для проверки вёрстки и транспонирования.
  */
-const DEMO_SONGS: SongFull[] = [
+type DemoSong = Omit<SongFull, 'origin'> & { origin?: 'site' | 'user' };
+
+const DEMO_SONGS: DemoSong[] = [
   {
     id: 1,
     title: 'Тестовая песня первая',
@@ -74,7 +79,7 @@ const DEMO_SONGS: SongFull[] = [
   },
 ];
 
-function toRow(song: SongFull) {
+function toRow(song: DemoSong) {
   return {
     id: song.id,
     title: song.title,
@@ -113,6 +118,7 @@ export class DemoRepository implements SongRepository {
     }
 
     if (params.favoritesOnly) items = items.slice(0, 2);
+    if (params.hasChordsOnly) items = items.filter((song) => song.hasChords);
     if (params.sort === 'title') items.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
 
     const offset = params.offset ?? 0;
@@ -122,7 +128,8 @@ export class DemoRepository implements SongRepository {
   }
 
   async get(id: number): Promise<SongFull | null> {
-    return DEMO_SONGS.find((song) => song.id === id) ?? null;
+    const song = DEMO_SONGS.find((item) => item.id === id);
+    return song ? { ...song, origin: song.origin ?? 'site' } : null;
   }
 
   async maxId(): Promise<number> {
@@ -136,5 +143,26 @@ export class DemoRepository implements SongRepository {
 
   async writeDelta(): Promise<WriteResult> {
     throw new Error('В демо-режиме обновление базы недоступно');
+  }
+
+  async addSong(input: NewSongInput): Promise<number> {
+    const id = 1_000_000 + DEMO_SONGS.length + 1;
+    const text = input.text.replace(/\r\n?/g, '\n').trimEnd();
+    DEMO_SONGS.push({
+      id,
+      origin: 'user',
+      title: input.title.trim() || 'Без названия',
+      artist: input.artist.trim() || 'Своя песня',
+      album: null,
+      key: input.key.trim(),
+      hasChords: text.length > 0,
+      text,
+    });
+    return id;
+  }
+
+  async deleteSong(id: number): Promise<void> {
+    const index = DEMO_SONGS.findIndex((song) => song.id === id && song.origin === 'user');
+    if (index >= 0) DEMO_SONGS.splice(index, 1);
   }
 }

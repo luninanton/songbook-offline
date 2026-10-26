@@ -12,6 +12,14 @@ export interface SongRow {
 
 export interface SongFull extends SongRow {
   text: string;
+  origin: 'site' | 'user';
+}
+
+export interface NewSongInput {
+  title: string;
+  artist: string;
+  key: string;
+  text: string;
 }
 
 export interface SongQuery {
@@ -22,6 +30,8 @@ export interface SongQuery {
   favoritesOnly?: boolean;
   /** Список id избранного — нужен, когда фильтр по избранному включён */
   favorites?: number[];
+  /** Показывать только песни с аккордами */
+  hasChordsOnly?: boolean;
 }
 
 export interface SongPage {
@@ -54,4 +64,8 @@ export interface SongRepository {
   allHashes(): Promise<Map<number, string>>;
   /** Записывает пакет обновления через уже открытое соединение */
   writeDelta(pack: DeltaPack): Promise<WriteResult>;
+  /** Добавляет песню, введённую вручную; возвращает её id */
+  addSong(input: NewSongInput): Promise<number>;
+  /** Удаляет песню, добавленную вручную */
+  deleteSong(id: number): Promise<void>;
 }

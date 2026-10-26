@@ -19,14 +19,15 @@ export interface ApplyResult {
 // INSERT OR REPLACE вместо UPSERT: на Android 6.0 системный SQLite старше ON CONFLICT DO UPDATE
 const UPSERT_SQL = `
   INSERT OR REPLACE INTO songs
-    (id, title, title_norm, artist, artist_norm, artist_id, album, album_id,
+    (id, origin, title, title_norm, artist, artist_norm, artist_id, album, album_id,
      key, text, has_chords, lang, published_at, modified_at, hash)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 function toParams(song: Song): unknown[] {
   return [
     song.id,
+    song.origin ?? 'site',
     song.title,
     normalizeForSearch(song.title),
     song.artist,
@@ -45,7 +46,11 @@ function toParams(song: Song): unknown[] {
 }
 
 /** Применяет дельта-пакет к открытой базе: песни + удаления + пересборка FTS */
-export async function applyDeltaTo(db: SQLiteDBConnection, pack: DeltaPack): Promise<ApplyResult> {
+export async function applyDeltaTo(
+  db: SQLiteDBConnection,
+  pack: DeltaPack,
+  options: { updateMeta?: boolean } = {},
+): Promise<ApplyResult> {
   const set: Array<{ statement: string; values: unknown[] }> = [];
   for (const song of pack.songs) set.push({ statement: UPSERT_SQL, values: toParams(song) });
   for (const id of pack.removed) {
@@ -62,14 +67,17 @@ export async function applyDeltaTo(db: SQLiteDBConnection, pack: DeltaPack): Pro
   const total = Number(((totalResult.values ?? [])[0] as { c: number } | undefined)?.c ?? 0);
 
   await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', ['count', String(total)]);
-  await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', [
-    'data_version',
-    pack.toVersion,
-  ]);
-  await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', [
-    'updated_at',
-    new Date().toISOString(),
-  ]);
+
+  if (options.updateMeta !== false) {
+    await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', [
+      'data_version',
+      pack.toVersion,
+    ]);
+    await db.run('INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)', [
+      'updated_at',
+      new Date().toISOString(),
+    ]);
+  }
 
   return { upserted: pack.songs.length, removed: pack.removed.length, total };
 }

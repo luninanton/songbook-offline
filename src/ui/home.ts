@@ -32,6 +32,10 @@ export function renderHome(root: HTMLElement, context: AppContext): void {
             `<button class="segmented__button" data-sort="${sort.id}">${sort.label}</button>`,
         ).join('')}
       </div>
+      <div class="chips">
+        <button class="chip" id="chords-filter" type="button">Только с аккордами</button>
+        <button class="chip" id="add-song" type="button">＋ Своя песня</button>
+      </div>
     </div>
     <div class="list" id="song-list" aria-live="polite"></div>
     <div class="list__footer" id="list-footer"></div>
@@ -48,6 +52,7 @@ export function renderHome(root: HTMLElement, context: AppContext): void {
   let total = 0;
   let loading = false;
   let query = '';
+  let hasChordsOnly = false;
 
   const highlightSort = (): void => {
     tabs.querySelectorAll<HTMLButtonElement>('[data-sort]').forEach((button) => {
@@ -69,6 +74,7 @@ export function renderHome(root: HTMLElement, context: AppContext): void {
         sort: sort === 'favorites' ? 'title' : sort,
         favoritesOnly: sort === 'favorites',
         favorites: context.favorites,
+        hasChordsOnly,
         limit: PAGE_SIZE,
         offset,
       });
@@ -145,4 +151,15 @@ export function renderHome(root: HTMLElement, context: AppContext): void {
 
   highlightSort();
   void load(true);
+
+  root.querySelector<HTMLButtonElement>('#add-song')?.addEventListener('click', () => {
+    context.onAddSong();
+  });
+
+  const chordsFilter = root.querySelector<HTMLButtonElement>('#chords-filter');
+  chordsFilter?.addEventListener('click', () => {
+    hasChordsOnly = !hasChordsOnly;
+    chordsFilter.classList.toggle('chip--active', hasChordsOnly);
+    void load(true);
+  });
 }

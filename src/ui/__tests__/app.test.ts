@@ -93,3 +93,42 @@ describe('ui: экран списка', () => {
     expect(JSON.parse(localStorage.getItem('hc.favorites.v1') ?? '[]')).toEqual([1]);
   });
 });
+
+describe('ui: фильтр и свои песни', () => {
+  it('фильтр «Только с аккордами» убирает песни без аккордов', async () => {
+    const root = await mount();
+    expect(root.querySelectorAll('.song-row').length).toBe(5);
+
+    const chip = root.querySelector<HTMLButtonElement>('#chords-filter') as HTMLButtonElement;
+    chip.click();
+    await new Promise((done) => setTimeout(done, 60));
+
+    expect(chip.classList.contains('chip--active')).toBe(true);
+    expect(root.querySelectorAll('.song-row').length).toBe(4);
+  });
+
+  it('добавляет свою песню через форму и открывает её', async () => {
+    const root = await mount();
+
+    (root.querySelector('#add-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    const title = document.querySelector<HTMLInputElement>('#title') as HTMLInputElement;
+    const text = document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement;
+    expect(title).not.toBeNull();
+
+    title.value = 'Своя тестовая';
+    text.value = 'Am   C\nстрока раз\nF    G\nстрока два';
+
+    (document.querySelector('#save') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 80));
+
+    const songTitle = root.querySelector('#song-title')?.textContent ?? '';
+    expect(songTitle).toBe('Своя тестовая');
+
+    // аккорды подсвечены и транспонирование доступно
+    expect(root.querySelectorAll('#song-text .chord').length).toBeGreaterThan(0);
+    (root.querySelector('#transpose-up') as HTMLButtonElement).click();
+    expect(root.querySelector('#song-text')?.textContent).toContain('A#');
+  });
+});
