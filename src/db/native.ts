@@ -1,6 +1,16 @@
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository } from './types';
 import { toFtsQuery } from '../core/normalize';
+import {
+  buildCountFts,
+  buildCountPlain,
+  buildSearchFts,
+  buildSearchPlain,
+  GET_SONG_SQL,
+  MAX_ID_SQL,
+  META_SQL,
+  orderByClause,
+} from './queries';
 
 /**
  * Нативная база на устройстве (этап M5: файл songs.db распаковывается из assets
@@ -35,7 +45,7 @@ export class NativeRepository implements SongRepository {
 
   async meta(): Promise<DbMeta> {
     const db = await this.database();
-    const result = await db.query('SELECT key, value FROM meta');
+    const result = await db.query(META_SQL);
     const values = new Map<string, string>();
     for (const row of (result.values ?? []) as Array<{ key: string; value: string }>) {
       values.set(row.key, row.value);
@@ -54,57 +64,32 @@ export class NativeRepository implements SongRepository {
     const offset = params.offset ?? 0;
     const query = (params.query ?? '').trim();
     const ftsQuery = query ? toFtsQuery(query) : '';
-    const favorites = params.favorites ?? [];
-    const favoritesFilter = params.favoritesOnly
-      ? `AND s.id IN (${favorites.length > 0 ? favorites.map(() => '?').join(',') : 'NULL'})`
-      : '';
+    const favorites = params.favoritesOnly ? (params.favorites ?? []) : undefined;
 
     if (ftsQuery) {
-      const values: unknown[] = [ftsQuery, ...(params.favoritesOnly ? favorites : []), limit, offset];
-      const result = await db.query(
-        `SELECT s.id, s.title, s.artist, s.album, s.key, s.has_chords
-         FROM songs_fts f JOIN songs s ON s.id = f.docid
-         WHERE songs_fts MATCH ? ${favoritesFilter}
-         ORDER BY ${orderBy(params)} LIMIT ? OFFSET ?`,
-        values,
-      );
-      const countValues: unknown[] = [ftsQuery, ...(params.favoritesOnly ? favorites : [])];
-      const total = await db.query(
-        `SELECT COUNT(*) AS c FROM songs_fts f JOIN songs s ON s.id = f.docid
-         WHERE songs_fts MATCH ? ${favoritesFilter}`,
-        countValues,
-      );
+      const list = buildSearchFts(ftsQuery, orderByClause(params.sort, true), limit, offset, favorites);
+      const count = buildCountFts(ftsQuery, favorites);
+      const rows = await db.query(list.sql, list.params);
+      const total = await db.query(count.sql, count.params);
       return {
-        items: ((result.values ?? []) as SongRecord[]).map(mapRow),
+        items: ((rows.values ?? []) as SongRecord[]).map(mapRow),
         total: Number(((total.values ?? [])[0] as { c: number } | undefined)?.c ?? 0),
       };
     }
 
-    const where = params.favoritesOnly
-      ? `WHERE id IN (${favorites.length > 0 ? favorites.map(() => '?').join(',') : 'NULL'})`
-      : '';
-    const listValues: unknown[] = [...(params.favoritesOnly ? favorites : []), limit, offset];
-    const result = await db.query(
-      `SELECT id, title, artist, album, key, has_chords FROM songs ${where}
-       ORDER BY ${orderBy(params)} LIMIT ? OFFSET ?`,
-      listValues,
-    );
-    const total = await db.query(
-      `SELECT COUNT(*) AS c FROM songs ${where}`,
-      params.favoritesOnly ? favorites : [],
-    );
+    const list = buildSearchPlain(orderByClause(params.sort, false), limit, offset, favorites);
+    const count = buildCountPlain(favorites);
+    const rows = await db.query(list.sql, list.params);
+    const total = await db.query(count.sql, count.params);
     return {
-      items: ((result.values ?? []) as SongRecord[]).map(mapRow),
+      items: ((rows.values ?? []) as SongRecord[]).map(mapRow),
       total: Number(((total.values ?? [])[0] as { c: number } | undefined)?.c ?? 0),
     };
   }
 
   async get(id: number): Promise<SongFull | null> {
     const db = await this.database();
-    const result = await db.query(
-      'SELECT id, title, artist, album, key, has_chords, text FROM songs WHERE id = ?',
-      [id],
-    );
+    const result = await db.query(GET_SONG_SQL, [id]);
     const row = ((result.values ?? [])[0] as (SongRecord & { text: string }) | undefined) ?? null;
     if (!row) return null;
     return { ...mapRow(row), text: row.text };
@@ -112,19 +97,8 @@ export class NativeRepository implements SongRepository {
 
   async maxId(): Promise<number> {
     const db = await this.database();
-    const result = await db.query('SELECT MAX(id) AS maxId FROM songs');
+    const result = await db.query(MAX_ID_SQL);
     return Number(((result.values ?? [])[0] as { maxId: number } | undefined)?.maxId ?? 0);
-  }
-}
-
-function orderBy(params: SongQuery): string {
-  switch (params.sort) {
-    case 'title':
-      return 's.title_norm ASC';
-    case 'popular':
-      return 's.id DESC';
-    default:
-      return 's.id DESC';
   }
 }
 
