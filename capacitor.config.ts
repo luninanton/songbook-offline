@@ -10,6 +10,13 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     webContentsDebuggingEnabled: false,
   },
+  plugins: {
+    // Запросы к holychords.pro и GitHub идут через нативный HTTP:
+    // у сайта нет CORS-заголовков, обычный fetch из WebView был бы заблокирован.
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
   server: {
     androidScheme: 'https',
   },

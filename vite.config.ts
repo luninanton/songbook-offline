@@ -12,7 +12,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    target: 'es2019',
+    // es2020 нужен из-за BigInt (хэш версий песен). Android System WebView
+    // обновляется через Play Store, поэтому на Android 6+ актуальная версия движка.
+    target: 'es2020',
     assetsInlineLimit: 0,
     sourcemap: false,
   },

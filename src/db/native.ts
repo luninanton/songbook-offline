@@ -109,6 +109,12 @@ export class NativeRepository implements SongRepository {
     if (!row) return null;
     return { ...mapRow(row), text: row.text };
   }
+
+  async maxId(): Promise<number> {
+    const db = await this.database();
+    const result = await db.query('SELECT MAX(id) AS maxId FROM songs');
+    return Number(((result.values ?? [])[0] as { maxId: number } | undefined)?.maxId ?? 0);
+  }
 }
 
 function orderBy(params: SongQuery): string {

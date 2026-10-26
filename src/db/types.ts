@@ -40,4 +40,6 @@ export interface SongRepository {
   meta(): Promise<DbMeta>;
   search(params: SongQuery): Promise<SongPage>;
   get(id: number): Promise<SongFull | null>;
+  /** Максимальный id в базе — по нему определяем новые песни на сайте */
+  maxId(): Promise<number>;
 }

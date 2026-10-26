@@ -593,3 +593,9 @@ body[data-layout='expanded'] .song__text {
 .range {
   width: 100%;
 }
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

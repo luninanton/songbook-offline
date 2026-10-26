@@ -124,4 +124,8 @@ export class DemoRepository implements SongRepository {
   async get(id: number): Promise<SongFull | null> {
     return DEMO_SONGS.find((song) => song.id === id) ?? null;
   }
+
+  async maxId(): Promise<number> {
+    return Math.max(...DEMO_SONGS.map((song) => song.id));
+  }
 }

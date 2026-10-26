@@ -14,6 +14,8 @@
     "crawl": "tsx scripts/crawl.ts",
     "db:build": "tsx scripts/build-db.ts",
     "db:install": "node scripts/install-db.mjs",
+    "delta:build": "tsx scripts/build-delta.ts",
+    "release:publish": "tsx scripts/publish-release.ts",
     "verify:transpose": "tsx scripts/verify-transpose.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
