@@ -142,10 +142,11 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
       cancelled = false;
       setBusy(true);
       try {
-        const minId = await context.repo.maxId();
+        const hashes = await context.repo.allHashes();
+        const localIds = new Set(hashes.keys());
         updateStatus.textContent = 'Смотрю список новых песен на сайте…';
         const result = await fetchNewSongs({
-          minId,
+          localIds,
           pages: 3,
           maxSongs: 30,
           isCancelled: () => cancelled,

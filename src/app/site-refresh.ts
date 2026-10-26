@@ -90,15 +90,16 @@ export interface QuickUpdateResult {
   failed: number;
 }
 
-/** Быстрое обновление: только новые песни из первых страниц списка */
+/** Быстрое обновление: песни из первых страниц списка, которых нет в локальной базе */
 export async function fetchNewSongs(
-  options: SiteOptions & { minId: number; pages?: number; maxSongs?: number },
+  options: SiteOptions & { localIds: ReadonlySet<number>; pages?: number; maxSongs?: number },
 ): Promise<QuickUpdateResult> {
   const pages = options.pages ?? 3;
   const maxSongs = options.maxSongs ?? 30;
   const found = await fetchCatalogIds(pages, options);
+  // Список на сайте не отсортирован по id, поэтому ориентируемся на состав, а не на max(id)
   const foundIds = [...new Set(found)].sort((a, b) => b - a);
-  const newIds = foundIds.filter((id) => id > options.minId).slice(0, maxSongs);
+  const newIds = foundIds.filter((id) => !options.localIds.has(id)).slice(0, maxSongs);
 
   const songs: Song[] = [];
   let failed = 0;
