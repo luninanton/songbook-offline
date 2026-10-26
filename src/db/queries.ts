@@ -66,6 +66,8 @@ export const GET_SONG_SQL =
 
 export const MAX_ID_SQL = 'SELECT MAX(id) AS maxId FROM songs';
 
+export const ALL_HASHES_SQL = 'SELECT id, hash FROM songs';
+
 export const META_SQL = 'SELECT key, value FROM meta';
 
 export const UPSERT_SONG_SQL = `

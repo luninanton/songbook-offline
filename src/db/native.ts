@@ -1,7 +1,10 @@
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
-import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository } from './types';
+import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository, WriteResult } from './types';
 import { toFtsQuery } from '../core/normalize';
+import type { DeltaPack } from '../core/update';
+import { applyDeltaTo } from './updater';
 import {
+  ALL_HASHES_SQL,
   buildCountFts,
   buildCountPlain,
   buildSearchFts,
@@ -99,6 +102,21 @@ export class NativeRepository implements SongRepository {
     const db = await this.database();
     const result = await db.query(MAX_ID_SQL);
     return Number(((result.values ?? [])[0] as { maxId: number } | undefined)?.maxId ?? 0);
+  }
+
+  async allHashes(): Promise<Map<number, string>> {
+    const db = await this.database();
+    const result = await db.query(ALL_HASHES_SQL);
+    const hashes = new Map<number, string>();
+    for (const row of (result.values ?? []) as Array<{ id: number; hash: string }>) {
+      hashes.set(Number(row.id), row.hash);
+    }
+    return hashes;
+  }
+
+  async writeDelta(pack: DeltaPack): Promise<WriteResult> {
+    const db = await this.database();
+    return applyDeltaTo(db, pack);
   }
 }
 

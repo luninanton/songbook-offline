@@ -1,6 +1,7 @@
 import { detectNotation, isChordLine, noteToSemitone } from '../core/chords';
 import { renderSong as buildSongView, transposeKey } from '../core/transpose';
 import { toggleFavorite } from '../app/settings';
+import { fetchSong } from '../app/site-refresh';
 import type { SongFull } from '../db/types';
 import type { AppContext } from './app';
 import { escapeHtml, songTextHtml } from './html';
@@ -33,10 +34,16 @@ export function renderSong(
     });
 }
 
-function paint(root: HTMLElement, context: AppContext, song: SongFull, compact: boolean): void {
+function paint(
+  root: HTMLElement,
+  context: AppContext,
+  song: SongFull,
+  compact: boolean,
+  initial?: { semitones?: number; capo?: number },
+): void {
   const notation = detectNotation(song.text);
-  let semitones = 0;
-  let capo = 0;
+  let semitones = initial?.semitones ?? 0;
+  let capo = initial?.capo ?? 0;
   let showChords = context.settings.showChords;
   let fontSize = context.settings.fontSize;
   let scrolling = false;
@@ -52,6 +59,7 @@ function paint(root: HTMLElement, context: AppContext, song: SongFull, compact: 
           <h1 class="song__title" id="song-title"></h1>
           <div class="song__meta" id="song-meta"></div>
         </div>
+        <button class="icon-button" id="refresh-song" title="Обновить песню с сайта" aria-label="Обновить песню с сайта">⟳</button>
         <button class="icon-button" id="favorite" title="В избранное" aria-label="В избранное">☆</button>
       </div>
 
@@ -81,6 +89,7 @@ function paint(root: HTMLElement, context: AppContext, song: SongFull, compact: 
       <div class="song__scroll" id="song-scroll">
         <pre class="song__text" id="song-text"></pre>
       </div>
+      <div class="song__status" id="song-status" hidden></div>
     </div>
     <div class="keypad-overlay" id="keys-overlay" hidden><div class="keypad" id="keypad"></div></div>
   `;
@@ -183,6 +192,47 @@ function paint(root: HTMLElement, context: AppContext, song: SongFull, compact: 
   favoriteBtn.addEventListener('click', () => {
     context.onFavoritesChange(toggleFavorite(song.id));
     update();
+  });
+
+  // ---------- обновление одной песни с сайта ----------
+  const refreshBtn = requireEl<HTMLButtonElement>(root, '#refresh-song');
+  const statusEl = requireEl<HTMLElement>(root, '#song-status');
+
+  refreshBtn.addEventListener('click', () => {
+    void (async () => {
+      refreshBtn.disabled = true;
+      statusEl.hidden = false;
+      statusEl.textContent = 'Скачиваю песню с сайта…';
+      try {
+        const fresh = await fetchSong(song.id);
+        if (!fresh) throw new Error('не удалось разобрать страницу');
+
+        if (fresh.text === song.text && fresh.key === song.key) {
+          statusEl.textContent = 'Песня уже совпадает с сайтом';
+          return;
+        }
+
+        await context.repo.writeDelta({
+          fromVersion: '',
+          toVersion: new Date().toISOString().slice(0, 10),
+          songs: [fresh],
+          removed: [],
+        });
+        paint(root, context, { ...song, ...fresh }, compact, { semitones, capo });
+
+        const freshStatus = root.querySelector<HTMLElement>('#song-status');
+        if (freshStatus) {
+          freshStatus.hidden = false;
+          freshStatus.textContent = 'Песня обновлена с сайта';
+        }
+      } catch (error) {
+        statusEl.textContent = `Не удалось обновить: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    })();
   });
 
   capoSelect.addEventListener('change', () => {

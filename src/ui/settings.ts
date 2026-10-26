@@ -1,19 +1,7 @@
 import type { AppContext } from './app';
 import { escapeHtml } from './html';
-import { fetchNewSongs } from '../app/site-sync';
+import { fetchNewSongs, scanAllSongs } from '../app/site-refresh';
 import { describeDelta, readDeltaFile } from '../app/update-file';
-import {
-  parseDeltaPack,
-  parseManifest,
-  planUpdate,
-  type UpdateManifest,
-  type UpdatePlan,
-} from '../core/update';
-import { applyDelta, upsertSongs } from '../db/updater';
-
-const MANIFEST_KEY = 'hc.update.manifest';
-const DEFAULT_MANIFEST_URL =
-  'https://github.com/USER/holychords-offline/releases/latest/download/manifest.json';
 
 /** Панель настроек (открывается поверх экрана) */
 export function renderSettings(root: HTMLElement, context: AppContext): void {
@@ -61,23 +49,29 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
       </div>
 
       <div class="settings__section">
-        <h3 class="settings__subtitle">Обновление</h3>
-        <label class="field">
-          <span class="field__label">Адрес манифеста обновлений</span>
-          <input class="search__input" id="manifest-url" type="url" inputmode="url" placeholder="https://github.com/…/releases/latest/download/manifest.json" />
-        </label>
+        <h3 class="settings__subtitle">Обновление с сайта</h3>
         <div class="settings__actions">
-          <button class="button" id="check-update" type="button">Проверить обновления</button>
-          <button class="button button--key" id="apply-update" type="button" disabled>Обновить</button>
+          <button class="button button--key" id="update-site" type="button">Обновить с сайта</button>
+          <button class="button" id="deep-scan" type="button">Обновить избранное</button>
+          <button class="button" id="stop-update" type="button" hidden>Остановить</button>
         </div>
-        <p class="settings__text" id="update-status">Готово к проверке</p>
+        <p class="settings__text" id="update-status">Новые песни скачиваются быстро.</p>
+        <p class="settings__text settings__text--muted">
+          «Обновить избранное» перекачивает только отмеченные песни — так подхватываются
+          правки текста. Массовое обновление всей базы делается на компьютере и приходит
+          с новой версией APK: полный обход каталога с телефона — это гигабайты трафика.
+        </p>
+      </div>
 
+      <div class="settings__section">
+        <h3 class="settings__subtitle">Дополнительно</h3>
         <div class="settings__actions">
-          <button class="button" id="sync-site" type="button">Новые песни с сайта</button>
           <button class="button" id="import-file" type="button">Обновить из файла</button>
           <input id="delta-file" type="file" accept=".gz,application/gzip" hidden />
         </div>
-        <p class="settings__text settings__text--muted" id="sync-status"></p>
+        <p class="settings__text settings__text--muted" id="sync-status">
+          Файл нужен, если интернет недоступен: пакет собирается на компьютере.
+        </p>
       </div>
 
       <p class="settings__text settings__text--muted">
@@ -92,6 +86,14 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
   const columnsSelect = requireEl<HTMLSelectElement>(root, '#columns');
   const chordsCheckbox = requireEl<HTMLInputElement>(root, '#show-chords');
   const dbInfo = requireEl<HTMLElement>(root, '#db-info');
+
+  const updateButton = requireEl<HTMLButtonElement>(root, '#update-site');
+  const deepButton = requireEl<HTMLButtonElement>(root, '#deep-scan');
+  const stopButton = requireEl<HTMLButtonElement>(root, '#stop-update');
+  const updateStatus = requireEl<HTMLElement>(root, '#update-status');
+  const importButton = requireEl<HTMLButtonElement>(root, '#import-file');
+  const fileInput = requireEl<HTMLInputElement>(root, '#delta-file');
+  const syncStatus = requireEl<HTMLElement>(root, '#sync-status');
 
   themeSelect.value = settings.theme;
   columnsSelect.value = String(settings.columns);
@@ -124,95 +126,111 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
     context.onSettingsChange({ showChords: chordsCheckbox.checked });
   });
 
-  // ---------- обновление базы (M6) ----------
-  const manifestInput = requireEl<HTMLInputElement>(root, '#manifest-url');
-  const checkButton = requireEl<HTMLButtonElement>(root, '#check-update');
-  const applyButton = requireEl<HTMLButtonElement>(root, '#apply-update');
-  const updateStatus = requireEl<HTMLElement>(root, '#update-status');
-  const syncButton = requireEl<HTMLButtonElement>(root, '#sync-site');
-  const syncStatus = requireEl<HTMLElement>(root, '#sync-status');
-  const importButton = requireEl<HTMLButtonElement>(root, '#import-file');
-  const fileInput = requireEl<HTMLInputElement>(root, '#delta-file');
+  // ---------- обновление с сайта ----------
+  let cancelled = false;
 
-  manifestInput.value = localStorage.getItem(MANIFEST_KEY) ?? DEFAULT_MANIFEST_URL;
-  manifestInput.addEventListener('change', () => {
-    localStorage.setItem(MANIFEST_KEY, manifestInput.value.trim());
-  });
-
-  let plan: UpdatePlan | null = null;
-
-  const setStatus = (text: string): void => {
-    updateStatus.textContent = text;
+  const setBusy = (busy: boolean): void => {
+    updateButton.disabled = busy;
+    deepButton.disabled = busy;
+    stopButton.hidden = !busy;
   };
 
-  checkButton.addEventListener('click', () => {
-    void (async () => {
-      const url = manifestInput.value.trim();
-      if (!url) {
-        setStatus('Укажите адрес манифеста');
-        return;
-      }
-      localStorage.setItem(MANIFEST_KEY, url);
-      setStatus('Проверяю…');
-      try {
-        const manifest = await fetchManifest(url);
-        const localVersion = (await context.repo.meta()).dataVersion;
-        plan = planUpdate(localVersion, manifest);
-        applyButton.disabled = plan.kind !== 'delta';
-        setStatus(`${plan.message}. В базе: ${manifest.count.toLocaleString('ru-RU')} песен.`);
-      } catch (error) {
-        plan = null;
-        applyButton.disabled = true;
-        setStatus(`Не удалось проверить: ${errorMessage(error)}`);
-      }
-    })();
-  });
+  const today = (): string => new Date().toISOString().slice(0, 10);
 
-  applyButton.addEventListener('click', () => {
+  updateButton.addEventListener('click', () => {
     void (async () => {
-      if (!plan || plan.kind !== 'delta' || !plan.asset) return;
-      applyButton.disabled = true;
-      setStatus('Скачиваю обновление…');
-      try {
-        const asset = plan.asset;
-        const json = await downloadGzipJson(asset.url, asset.sha256);
-        const pack = parseDeltaPack(json);
-        setStatus(`Применяю: ${pack.songs.length} песен…`);
-        const result = await applyDelta(pack);
-        setStatus(`Готово: обновлено ${result.upserted}, удалено ${result.removed}, всего ${result.total}.`);
-        context.meta = await context.repo.meta();
-        plan = null;
-      } catch (error) {
-        applyButton.disabled = false;
-        setStatus(`Ошибка обновления: ${errorMessage(error)}`);
-      }
-    })();
-  });
-
-  syncButton.addEventListener('click', () => {
-    void (async () => {
-      syncButton.disabled = true;
-      syncStatus.textContent = 'Смотрю список новых песен на сайте…';
+      cancelled = false;
+      setBusy(true);
       try {
         const minId = await context.repo.maxId();
-        const result = await fetchNewSongs({ minId, listPages: 2, maxSongs: 20 });
+        updateStatus.textContent = 'Смотрю список новых песен на сайте…';
+        const result = await fetchNewSongs({
+          minId,
+          pages: 3,
+          maxSongs: 30,
+          isCancelled: () => cancelled,
+        });
+
         if (result.songs.length === 0) {
-          syncStatus.textContent = 'Новых песен не найдено';
+          updateStatus.textContent = 'Новых песен нет — база актуальна';
           return;
         }
-        syncStatus.textContent = `Нашёл ${result.newIds.length}, скачал ${result.songs.length}. Добавляю в базу…`;
-        const applied = await upsertSongs(result.songs);
-        syncStatus.textContent = `Добавлено песен: ${applied.upserted}, теперь в базе ${applied.total}.`;
+
+        updateStatus.textContent = `Скачал ${result.songs.length} новых песен, добавляю в базу…`;
+        const applied = await context.repo.writeDelta({
+          fromVersion: '',
+          toVersion: today(),
+          songs: result.songs,
+          removed: [],
+        });
+        updateStatus.textContent = `Готово: добавлено ${applied.upserted}, всего в базе ${applied.total}.`;
         context.meta = await context.repo.meta();
       } catch (error) {
-        syncStatus.textContent = `Не удалось обновить с сайта: ${errorMessage(error)}`;
+        updateStatus.textContent = `Не удалось обновить: ${errorMessage(error)}`;
       } finally {
-        syncButton.disabled = false;
+        setBusy(false);
       }
     })();
   });
 
-  // ---------- импорт пакета обновления из файла (без хостинга) ----------
+  deepButton.addEventListener('click', () => {
+    void (async () => {
+      cancelled = false;
+      setBusy(true);
+      try {
+        const ids = context.favorites.slice();
+        if (ids.length === 0) {
+          updateStatus.textContent = 'В избранном нет песен — отметьте нужные звездой';
+          return;
+        }
+
+        const hashes = await context.repo.allHashes();
+        updateStatus.textContent = `Проверяю ${ids.length} песен из избранного…`;
+
+        const scan = await scanAllSongs({
+          ids,
+          localHashes: hashes,
+          concurrency: 3,
+          isCancelled: () => cancelled,
+          onProgress: (progress) => {
+            updateStatus.textContent =
+              `Проверено ${progress.scanned} из ${progress.total}, ` +
+              `изменено ${progress.changed}, ошибок ${progress.failed}…`;
+          },
+        });
+
+        if (scan.songs.length === 0) {
+          updateStatus.textContent = scan.cancelled
+            ? `Остановлено: проверено ${scan.scanned} песен, изменений нет`
+            : 'Избранные песни совпадают с сайтом';
+          return;
+        }
+
+        updateStatus.textContent = `Применяю: изменённых ${scan.songs.length}…`;
+        const applied = await context.repo.writeDelta({
+          fromVersion: '',
+          toVersion: today(),
+          songs: scan.songs,
+          removed: [],
+        });
+        updateStatus.textContent =
+          `Готово: обновлено ${applied.upserted}, удалено ${applied.removed}, всего ${applied.total}.` +
+          (scan.cancelled ? ' (проверка была остановлена)' : '');
+        context.meta = await context.repo.meta();
+      } catch (error) {
+        updateStatus.textContent = `Не удалось обновить: ${errorMessage(error)}`;
+      } finally {
+        setBusy(false);
+      }
+    })();
+  });
+
+  stopButton.addEventListener('click', () => {
+    cancelled = true;
+    updateStatus.textContent = 'Останавливаю…';
+  });
+
+  // ---------- импорт пакета обновления из файла (резервный режим) ----------
   importButton.addEventListener('click', () => fileInput.click());
 
   fileInput.addEventListener('change', () => {
@@ -225,7 +243,7 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
       try {
         const pack = await readDeltaFile(file);
         syncStatus.textContent = `Применяю: ${describeDelta(pack)}…`;
-        const result = await applyDelta(pack);
+        const result = await context.repo.writeDelta(pack);
         syncStatus.textContent =
           `Готово: обновлено ${result.upserted}, удалено ${result.removed}, всего ${result.total}.`;
         context.meta = await context.repo.meta();
@@ -237,7 +255,6 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
       }
     })();
   });
-
 }
 
 function requireEl<T extends HTMLElement>(root: ParentNode, selector: string): T {
@@ -246,38 +263,7 @@ function requireEl<T extends HTMLElement>(root: ParentNode, selector: string): T
   return element;
 }
 
-
-async function fetchManifest(url: string): Promise<UpdateManifest> {
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return parseManifest(await response.json());
-}
-
-/** Скачивает .gz, проверяет sha256 (если указан) и распаковывает в JSON */
-async function downloadGzipJson(url: string, expectedSha256: string): Promise<unknown> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-  const buffer = await response.arrayBuffer();
-  if (expectedSha256) {
-    const actual = await sha256Hex(buffer);
-    if (actual !== expectedSha256) throw new Error('контрольная сумма не совпала');
-  }
-
-  if (typeof DecompressionStream === 'undefined') {
-    throw new Error('устройство не поддерживает распаковку gzip');
-  }
-
-  const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
-  const text = await new Response(stream).text();
-  return JSON.parse(text) as unknown;
-}
-
-async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+

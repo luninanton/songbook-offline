@@ -1,3 +1,5 @@
+import type { DeltaPack } from '../core/update';
+
 /** Модели для UI и слоя данных. */
 export interface SongRow {
   id: number;
@@ -34,6 +36,12 @@ export interface DbMeta {
   builtAt: string;
 }
 
+export interface WriteResult {
+  upserted: number;
+  removed: number;
+  total: number;
+}
+
 /** Слой данных: одинаковый интерфейс для демо-режима и нативного SQLite */
 export interface SongRepository {
   ready(): Promise<void>;
@@ -42,4 +50,8 @@ export interface SongRepository {
   get(id: number): Promise<SongFull | null>;
   /** Максимальный id в базе — по нему определяем новые песни на сайте */
   maxId(): Promise<number>;
+  /** id → хэш текста: по нему ищем изменённые песни при полной проверке */
+  allHashes(): Promise<Map<number, string>>;
+  /** Записывает пакет обновления через уже открытое соединение */
+  writeDelta(pack: DeltaPack): Promise<WriteResult>;
 }

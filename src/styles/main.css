@@ -599,3 +599,14 @@ body[data-layout='expanded'] .song__text {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.song__status {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 10px;
+  margin-top: 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13px;
+}

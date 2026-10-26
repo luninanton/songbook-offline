@@ -1,4 +1,4 @@
-import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository } from './types';
+import type { DbMeta, SongFull, SongPage, SongQuery, SongRepository, WriteResult } from './types';
 
 /**
  * Демо-репозиторий для запуска в браузере (npm run dev) без собранной базы.
@@ -127,5 +127,14 @@ export class DemoRepository implements SongRepository {
 
   async maxId(): Promise<number> {
     return Math.max(...DEMO_SONGS.map((song) => song.id));
+  }
+
+  async allHashes(): Promise<Map<number, string>> {
+    // В демо-режиме хэшей нет: полная проверка с сайта здесь не применяется
+    return new Map();
+  }
+
+  async writeDelta(): Promise<WriteResult> {
+    throw new Error('В демо-режиме обновление базы недоступно');
   }
 }
