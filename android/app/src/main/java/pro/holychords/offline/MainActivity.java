@@ -7,18 +7,20 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.zip.GZIPInputStream;
 
 /**
- * Приложение стартует с готовой базой: при первом запуске архив songs.db.gz
- * из assets распаковывается в системную папку баз данных, откуда его открывает
- * плагин @capacitor-community/sqlite (getDatabasePath("songs")).
+ * Приложение стартует с готовой базой: при первом запуске файл songs.db из assets
+ * копируется в системную папку баз данных как songsSQLite.db — именно этот путь
+ * открывает плагин @capacitor-community/sqlite (dbName + "SQLite.db").
+ *
+ * В APK база лежит как assets/songs.db: Android Gradle Plugin сам распаковывает
+ * .gz-ассеты при упаковке, а внутри zip файл всё равно сжимается дефлейтом.
  */
 public class MainActivity extends BridgeActivity {
 
     private static final String TAG = "HolychordsOffline";
-    private static final String DB_NAME = "songs";
-    private static final String ASSET_NAME = "songs.db.gz";
+    private static final String DB_FILE_NAME = "songsSQLite.db";
+    private static final String ASSET_NAME = "songs.db";
     private static final long MIN_FREE_BYTES = 250L * 1024L * 1024L;
 
     @Override
@@ -28,7 +30,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void installDatabase() {
-        File dbFile = getDatabasePath(DB_NAME);
+        File dbFile = getDatabasePath(DB_FILE_NAME);
         if (dbFile.exists() && dbFile.length() > 0) {
             return;
         }
@@ -41,21 +43,20 @@ public class MainActivity extends BridgeActivity {
         parent.mkdirs();
 
         if (parent.getUsableSpace() < MIN_FREE_BYTES) {
-            Log.e(TAG, "Мало свободного места для распаковки базы");
+            Log.e(TAG, "Мало свободного места для базы");
             return;
         }
 
         File temp = new File(dbFile.getAbsolutePath() + ".tmp");
-        try (InputStream raw = getAssets().open(ASSET_NAME);
-             GZIPInputStream gz = new GZIPInputStream(raw);
+        try (InputStream in = getAssets().open(ASSET_NAME);
              FileOutputStream out = new FileOutputStream(temp)) {
             byte[] buffer = new byte[1 << 16];
             int read;
-            while ((read = gz.read(buffer)) > 0) {
+            while ((read = in.read(buffer)) > 0) {
                 out.write(buffer, 0, read);
             }
         } catch (IOException error) {
-            Log.e(TAG, "Не удалось распаковать базу из assets", error);
+            Log.e(TAG, "Не удалось скопировать базу из assets", error);
             temp.delete();
             return;
         }

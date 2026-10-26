@@ -10,32 +10,20 @@ export type Notation = 'german' | 'international';
 export const CHROMATIC_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 export const CHROMATIC_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
-const NOTE_TO_PC: Record<string, number> = {
+/** Базовые ступени без альтераций */
+const LETTER_PC: Record<string, number> = {
   C: 0,
-  'C#': 1,
-  Db: 1,
   D: 2,
-  'D#': 3,
-  Eb: 3,
   E: 4,
-  Fb: 4,
-  'E#': 5,
   F: 5,
-  'F#': 6,
-  Gb: 6,
   G: 7,
-  'G#': 8,
-  Ab: 8,
   A: 9,
-  'A#': 10,
-  Bb: 10,
   B: 11,
-  Cb: 11,
   H: 11,
 };
 
-/** Регулярка аккорда: корень + модификаторы + необязательный бас после слэша */
-const CHORD_RE = /^([A-H](?:#|b)?)((?:maj|min|m|M|dim|aug|sus|add|no|\+|-|\d|#|b|°|ø|\(|\))*)(?:\/([A-H](?:#|b)?))?$/;
+/** Регулярка аккорда: корень (включая двойные альтерации) + модификаторы + бас после слэша */
+const CHORD_RE = /^([A-H](?:##|bb|#|b)?)((?:maj|min|m|M|dim|aug|sus|add|no|\+|-|\d|#|b|°|ø|\(|\))*)(?:\/([A-H](?:##|bb|#|b)?))?$/;
 
 /** Служебные пометки, которые в базе стоят в аккордовых строках */
 const SECTION_WORDS = new Set([
@@ -93,11 +81,24 @@ export function detectNotation(text: string): Notation {
   return /(^|[\s|(])H(?:m|maj|min|sus|dim|aug|add|\d)*(?=$|[\s|)/.,;:])/m.test(text) ? 'german' : 'international';
 }
 
-/** Полутон для ноты (0 = C). Возвращает null, если это не нота. */
+/**
+ * Полутон для ноты (0 = C). Поддерживаются двойные альтерации (##, bb).
+ * Возвращает null, если это не нота.
+ */
 export function noteToSemitone(note: string, notation: Notation = 'german'): number | null {
   const normalized = normalizeNote(note, notation);
-  const pc = NOTE_TO_PC[normalized];
-  return pc === undefined ? null : pc;
+  const match = /^([A-H])([#b]*)$/.exec(normalized);
+  if (!match) return null;
+
+  const base = LETTER_PC[match[1] as string];
+  if (base === undefined) return null;
+
+  let shift = 0;
+  for (const symbol of match[2] as string) {
+    shift += symbol === '#' ? 1 : -1;
+  }
+
+  return (((base + shift) % 12) + 12) % 12;
 }
 
 /** Разбирает один токен как аккорд. Возвращает null, если токен аккордом не является. */

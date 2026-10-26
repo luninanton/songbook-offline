@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { noteToSemitone } from '../chords';
-import { renderSong, transposeChord, transposeKey, transposeText } from '../transpose';
+import { transposeChord, transposeKey, transposeText, renderSong } from '../transpose';
+import { parseChordToken } from '../chords';
 
 /**
  * Тексты в тестах — вымышленные (никаких реальных песен), проверяем только аккорды
@@ -56,6 +57,25 @@ describe('transpose: высота аккордов', () => {
   it('сохраняет обрамление токена', () => {
     expect(transposeChord('|Db', 2)).toBe('|Eb');
     expect(transposeChord('(Ab)', 2)).toBe('(Bb)');
+  });
+
+  it('корректно обрабатывает двойные альтерации и альтерации в модификаторе', () => {
+    // реальные случаи из базы: Bbb, G#b5/A, F##m
+    expect(transposeChord('Bbb', 1)).toBe('Bb');
+    expect(transposeChord('G#b5/A', 1)).toBe('A(b5)/Bb');
+    expect(transposeChord('F##m', 1)).toBe('G#m');
+
+    // и главное — обратный разбор даёт ту же высоту
+    for (const [token, shift] of [
+      ['Bbb', 1],
+      ['G#b5/A', 6],
+      ['F##m', 1],
+      ['Cbb', 3],
+    ] as const) {
+      const original = parseChordToken(token, 'international');
+      const shifted = parseChordToken(transposeChord(token, shift, { notation: 'international' }), 'international');
+      expect(shifted?.rootSemitone).toBe(((original?.rootSemitone ?? 0) + shift) % 12);
+    }
   });
 
   it('не трогает не-аккорды', () => {

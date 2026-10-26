@@ -2,7 +2,10 @@
  * Кладёт собранную базу в assets Android-проекта, чтобы приложение работало
  * сразу после установки, без интернета.
  *
- *   node scripts/install-db.mjs [--in=data/build/songs.db.gz]
+ *   node scripts/install-db.mjs [--in=data/build/songs.db]
+ *
+ * В APK файл кладётся как assets/songs.db: Android Gradle Plugin сам распаковывает
+ * .gz-ассеты при упаковке, поэтому сжатый вариант всё равно превращается в обычный файл.
  */
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -13,9 +16,9 @@ const arg = (name, fallback) => {
   return found ? found.slice(prefix.length) : fallback;
 };
 
-const source = resolve(arg('in', 'data/build/songs.db.gz'));
+const source = resolve(arg('in', 'data/build/songs.db'));
 const targetDir = resolve('android/app/src/main/assets');
-const target = resolve(targetDir, 'songs.db.gz');
+const target = resolve(targetDir, 'songs.db');
 
 if (!existsSync(source)) {
   console.error(`Нет файла базы: ${source}`);
@@ -28,3 +31,4 @@ copyFileSync(source, target);
 
 const sizeMb = (file) => (statSync(file).size / 1e6).toFixed(1);
 console.log(`База скопирована: ${source} (${sizeMb(source)} МБ) → ${target} (${sizeMb(target)} МБ)`);
+console.log('Не забудьте: npm run android:apk');

@@ -72,7 +72,13 @@ export function transposeChord(
   if (!parsed) return token;
 
   const preferFlats = options.preferFlats ?? core.includes('b');
-  let result = noteName(parsed.rootSemitone + semitones, notation, preferFlats) + parsed.suffix;
+  const rootName = noteName(parsed.rootSemitone + semitones, notation, preferFlats);
+
+  // Если модификатор начинается с альтерации (b5, #9, …), в записи «корень+модификатор»
+  // появляется неоднозначность: «A» + «b5» читается как «Ab5». Заключаем модификатор в скобки.
+  const suffixOut = /^[#b]/.test(parsed.suffix) ? `(${parsed.suffix})` : parsed.suffix;
+
+  let result = rootName + suffixOut;
 
   if (parsed.bassSemitone !== null) {
     result += `/${noteName(parsed.bassSemitone + semitones, notation, preferFlats)}`;

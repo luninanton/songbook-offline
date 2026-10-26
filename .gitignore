@@ -21,6 +21,7 @@ data/*.db
 data/*.gz
 
 # база внутри Android-проекта (кладётся скриптом npm run db:install)
+android/app/src/main/assets/songs.db
 android/app/src/main/assets/songs.db.gz
 
 # misc
@@ -31,3 +32,6 @@ android/app/src/main/assets/songs.db.gz
 .idea/
 .vscode/
 *.keystore
+
+# скриншоты содержат тексты песен — храним локально, не в git
+docs/screenshots/
