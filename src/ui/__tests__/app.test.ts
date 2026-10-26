@@ -132,3 +132,46 @@ describe('ui: фильтр и свои песни', () => {
     expect(root.querySelector('#song-text')?.textContent).toContain('A#');
   });
 });
+
+describe('ui: редактирование своей песни', () => {
+  it('открывает форму с заполненными полями и сохраняет изменения без дубля', async () => {
+    const root = await mount();
+
+    // создаём песню
+    (root.querySelector('#add-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    (document.querySelector<HTMLInputElement>('#title') as HTMLInputElement).value = 'Черновик';
+    (document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement).value =
+      'Am  C\nстрока раз';
+    (document.querySelector('#save') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 80));
+
+    expect(root.querySelector('#song-title')?.textContent).toBe('Черновик');
+
+    // редактируем
+    (root.querySelector('#edit-song') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+
+    const title = document.querySelector<HTMLInputElement>('#title') as HTMLInputElement;
+    const text = document.querySelector<HTMLTextAreaElement>('#text') as HTMLTextAreaElement;
+    expect(title.value).toBe('Черновик');
+    expect(text.value).toContain('Am  C');
+    expect(document.querySelector('.settings__title')?.textContent).toContain('Редактировать');
+
+    title.value = 'Переименованная';
+    text.value = 'Dm  Bb\nстрока новая';
+    (document.querySelector('#save') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 80));
+
+    expect(root.querySelector('#song-title')?.textContent).toBe('Переименованная');
+
+    // поиск находит ровно одну запись со старым id — дубля нет
+    const input = root.querySelector<HTMLInputElement>('#search-input') as HTMLInputElement;
+    input.value = 'Переименованная';
+    input.dispatchEvent(new Event('input'));
+    await new Promise((done) => setTimeout(done, 260));
+
+    expect(root.querySelectorAll('.song-row').length).toBe(1);
+  });
+});

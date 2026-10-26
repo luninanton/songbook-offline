@@ -5,7 +5,16 @@ import { escapeHtml } from './html';
 /** Тональности для выбора (пустая = не указана) */
 const KEYS = ['', 'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+export interface SongFormValues {
+  title: string;
+  artist: string;
+  key: string;
+  text: string;
+}
+
 export interface SongFormCallbacks {
+  /** Заполненные поля — для редактирования существующей песни */
+  initial?: SongFormValues;
   onCancel: () => void;
   onSave: (input: NewSongInput) => Promise<void>;
 }
@@ -18,7 +27,7 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
   root.innerHTML = `
     <div class="settings">
       <div class="settings__head">
-        <h2 class="settings__title">Своя песня</h2>
+        <h2 class="settings__title">${callbacks.initial ? 'Редактировать песню' : 'Своя песня'}</h2>
         <button class="icon-button" id="cancel" title="Отмена">✕</button>
       </div>
 
@@ -63,6 +72,13 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
   const status = requireEl<HTMLElement>(root, '#form-status');
   const saveButton = requireEl<HTMLButtonElement>(root, '#save');
 
+  if (callbacks.initial) {
+    titleInput.value = callbacks.initial.title;
+    artistInput.value = callbacks.initial.artist;
+    keySelect.value = callbacks.initial.key;
+    textArea.value = callbacks.initial.text;
+  }
+
   const cancel = (): void => callbacks.onCancel();
   requireEl<HTMLButtonElement>(root, '#cancel').addEventListener('click', cancel);
   requireEl<HTMLButtonElement>(root, '#cancel-2').addEventListener('click', cancel);
@@ -87,6 +103,7 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
   };
 
   textArea.addEventListener('input', updateHint);
+  updateHint();
 
   const save = (): void => {
     void (async () => {

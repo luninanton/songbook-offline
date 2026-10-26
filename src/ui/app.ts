@@ -6,7 +6,7 @@ import {
   type Settings,
 } from '../app/settings';
 import { getRepository } from '../db';
-import type { DbMeta, SongRepository } from '../db/types';
+import type { DbMeta, SongFull, SongRepository } from '../db/types';
 import { renderHome } from './home';
 import { renderSettings } from './settings';
 import { renderSong } from './song';
@@ -29,6 +29,8 @@ export interface AppContext {
   onFavoritesChange: (ids: number[]) => void;
   /** Открыть форму добавления своей песни */
   onAddSong: () => void;
+  /** Открыть форму редактирования своей песни */
+  onEditSong: (song: SongFull) => void;
 }
 
 type View = 'home' | 'song' | 'settings';
@@ -65,6 +67,7 @@ export async function mountApp(root: HTMLElement): Promise<void> {
   const repo = await getRepository();
   let view: View = 'home';
   let formOpen = false;
+  let formSong: SongFull | null = null;
   let favorites = safeFavorites();
   let meta: DbMeta | null = null;
   let currentSongId: number | null = null;
@@ -103,6 +106,12 @@ export async function mountApp(root: HTMLElement): Promise<void> {
       paint();
     },
     onAddSong: () => {
+      formSong = null;
+      formOpen = true;
+      paint();
+    },
+    onEditSong: (song) => {
+      formSong = song;
       formOpen = true;
       paint();
     },
@@ -173,14 +182,23 @@ export async function mountApp(root: HTMLElement): Promise<void> {
         renderSettings(panel, context);
       } else {
         renderSongForm(panel, {
+          initial: formSong
+            ? {
+                title: formSong.title,
+                artist: formSong.artist === 'Своя песня' ? '' : formSong.artist,
+                key: formSong.key,
+                text: formSong.text,
+              }
+            : undefined,
           onCancel: () => {
             formOpen = false;
+            formSong = null;
             paint();
           },
           onSave: async (input) => {
             const text = input.text.replace(/\r\n?/g, '\n').trimEnd();
             const song: Song = {
-              id: Date.now(),
+              id: formSong?.id ?? Date.now(),
               origin: 'user',
               title: input.title.trim() || 'Без названия',
               artist: input.artist.trim() || 'Своя песня',
@@ -198,6 +216,7 @@ export async function mountApp(root: HTMLElement): Promise<void> {
             await repo.saveUserSong(song);
             upsertUserSong(song);
             formOpen = false;
+            formSong = null;
             currentSongId = song.id;
             view = 'song';
             paint();

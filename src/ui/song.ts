@@ -60,7 +60,7 @@ function paint(
           <h1 class="song__title" id="song-title"></h1>
           <div class="song__meta" id="song-meta"></div>
         </div>
-        ${song.origin === 'user' ? '<button class="icon-button" id="delete-song" title="Удалить свою песню" aria-label="Удалить">🗑</button>' : ''}
+        ${song.origin === 'user' ? '<button class="icon-button" id="edit-song" title="Редактировать" aria-label="Редактировать">✎</button><button class="icon-button" id="delete-song" title="Удалить свою песню" aria-label="Удалить">🗑</button>' : ''}
         <button class="icon-button" id="refresh-song" title="Обновить песню с сайта" aria-label="Обновить песню с сайта">⟳</button>
         <button class="icon-button" id="favorite" title="В избранное" aria-label="В избранное">☆</button>
       </div>
@@ -197,6 +197,11 @@ function paint(
   favoriteBtn.addEventListener('click', () => {
     context.onFavoritesChange(toggleFavorite(song.id));
     update();
+  });
+
+  // ---------- редактирование своей песни ----------
+  root.querySelector<HTMLButtonElement>('#edit-song')?.addEventListener('click', () => {
+    context.onEditSong(song);
   });
 
   // ---------- удаление своей песни ----------
