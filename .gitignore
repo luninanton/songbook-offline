@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/capacitor-cordova-android-plugins/
+
+# data (raw crawl results and generated db are big, not in git)
+data/raw/
+data/build/
+data/cache/
+data/*.db
+data/*.gz
+
+# misc
+.DS_Store
+*.log
+.env
+.env.local
+.idea/
+.vscode/
+*.keystore
