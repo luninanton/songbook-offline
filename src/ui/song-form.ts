@@ -1,4 +1,5 @@
 import type { NewSongInput } from '../db/types';
+import { chordLines, detectNotation } from '../core/chords';
 import { escapeHtml } from './html';
 
 /** Тональности для выбора (пустая = не указана) */
@@ -66,6 +67,27 @@ export function renderSongForm(root: HTMLElement, callbacks: SongFormCallbacks):
   requireEl<HTMLButtonElement>(root, '#cancel').addEventListener('click', cancel);
   requireEl<HTMLButtonElement>(root, '#cancel-2').addEventListener('click', cancel);
 
+  // Живая подсказка: показываем, что аккорды распознаны (и сколько строк)
+  const updateHint = (): void => {
+    const text = textArea.value;
+    if (!text.trim()) {
+      status.innerHTML =
+        'Аккорды пишите отдельной строкой над словами — приложение само определит их и включит транспонирование.';
+      return;
+    }
+
+    const notation = detectNotation(text);
+    const count = chordLines(text, notation).length;
+
+    status.innerHTML =
+      count > 0
+        ? `<strong>Аккорды распознаны:</strong> ${count} ${plural(count, 'строка', 'строки', 'строк')}. ` +
+          'Транспонирование, капо и подсветка будут работать.'
+        : 'Аккорды не найдены — песня сохранится как текст. Если нужны аккорды, добавьте строку над словами, например <code>Am   C</code>.';
+  };
+
+  textArea.addEventListener('input', updateHint);
+
   const save = (): void => {
     void (async () => {
       const title = titleInput.value.trim();
@@ -107,4 +129,13 @@ function requireEl<T extends HTMLElement>(root: ParentNode, selector: string): T
   const element = root.querySelector<T>(selector);
   if (!element) throw new Error(`Не найден элемент ${selector}`);
   return element;
+}
+
+/** Русское склонение: 1 строка, 2 строки, 5 строк */
+function plural(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
 }
