@@ -1,92 +1,174 @@
-import { Capacitor } from '@capacitor/core';
+import {
+  applyTheme,
+  loadFavorites,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from '../app/settings';
+import { getRepository } from '../db';
+import type { DbMeta, SongRepository } from '../db/types';
+import { renderHome } from './home';
+import { renderSettings } from './settings';
+import { renderSong } from './song';
 
-/**
- * Каркас M0: оболочка приложения и проверка окружения.
- * Экраны (Список/Поиск, Песня, Избранное, Настройки) появятся на этапе M4.
- */
-
-interface EnvRow {
-  label: string;
-  value: string;
+export interface AppContext {
+  repo: SongRepository;
+  settings: Settings;
+  meta: DbMeta | null;
+  favorites: number[];
+  onSelectSong: (id: number) => void;
+  onBack: () => void;
+  onOpenSettings: () => void;
+  onCloseSettings: () => void;
+  onSettingsChange: (patch: Partial<Settings>) => void;
+  onFavoritesChange: (ids: number[]) => void;
 }
 
-function platformRows(): EnvRow[] {
-  const isNative = Capacitor.isNativePlatform();
-  return [
-    { label: 'Платформа', value: isNative ? Capacitor.getPlatform() : 'браузер (dev)' },
-    { label: 'Офлайн-режим', value: 'да, сеть в рантайме не используется' },
-    { label: 'База', value: 'не собрана (этап M2)' },
-    { label: 'Версия сборки', value: __APP_VERSION__ },
-  ];
+type View = 'home' | 'song' | 'settings';
+
+export function layoutClass(width: number): 'compact' | 'medium' | 'expanded' {
+  if (width >= 840) return 'expanded';
+  if (width >= 600) return 'medium';
+  return 'compact';
 }
 
-function layoutClass(): string {
-  const width = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
-  if (width >= 840) return 'layout-expanded';
-  if (width >= 600) return 'layout-medium';
-  return 'layout-compact';
-}
+export async function mountApp(root: HTMLElement): Promise<void> {
+  const settings = loadSettings();
+  applyTheme(settings.theme);
 
-export function mountApp(root: HTMLElement): void {
   root.innerHTML = `
     <header class="app-bar">
       <div class="app-bar__title">
         <span class="app-bar__logo">HC</span>
-        <span>Holychords Офлайн</span>
+        <span class="app-bar__name">Holychords Офлайн</span>
       </div>
-      <span class="app-bar__badge">M0 · каркас</span>
+      <div class="app-bar__actions">
+        <span class="app-bar__badge" id="db-badge">база…</span>
+        <button class="icon-button" id="open-settings" title="Настройки" aria-label="Настройки">⚙</button>
+      </div>
     </header>
-    <main class="app-main">
-      <section class="card">
-        <h1 class="card__title">Каркас готов</h1>
-        <p class="card__text">
-          Приложение работает офлайн. Дальше по плану: сбор базы песен (M1–M2),
-          движок транспонирования (M3), экраны (M4), APK (M5), обновления (M6).
-        </p>
-        <dl class="env">
-          ${platformRows()
-            .map(
-              (row) => `
-            <div class="env__row">
-              <dt class="env__label">${row.label}</dt>
-              <dd class="env__value">${row.value}</dd>
-            </div>`,
-            )
-            .join('')}
-        </dl>
-      </section>
-
-      <section class="card card--muted">
-        <h2 class="card__subtitle">Экраны в разработке</h2>
-        <ul class="screen-list">
-          <li class="screen-list__item">Поиск и список песен</li>
-          <li class="screen-list__item">Песня: аккорды, тональность, капо, автоскролл</li>
-          <li class="screen-list__item">Избранное и сет-листы</li>
-          <li class="screen-list__item">Настройки и обновление базы</li>
-        </ul>
-      </section>
-    </main>
-    <footer class="app-footer">
-      <span id="viewport-info" class="app-footer__text"></span>
-    </footer>
+    <main class="app-main" id="main"></main>
   `;
 
-  const viewportInfo = root.querySelector<HTMLElement>('#viewport-info');
-  const render = (): void => {
-    document.body.dataset.layout = layoutClass();
-    if (viewportInfo) {
-      viewportInfo.textContent = `Окно ${window.innerWidth}×${window.innerHeight}px · ${widthBucketLabel()}`;
-    }
+  const main = root.querySelector<HTMLElement>('#main');
+  const badge = root.querySelector<HTMLElement>('#db-badge');
+  if (!main || !badge) throw new Error('Разметка оболочки не собралась');
+  const mainEl: HTMLElement = main;
+
+  const repo = await getRepository();
+  let view: View = 'home';
+  let favorites = safeFavorites();
+  let meta: DbMeta | null = null;
+  let currentSongId: number | null = null;
+
+  const context: AppContext = {
+    repo,
+    settings,
+    meta,
+    favorites,
+    onSelectSong: (id) => {
+      currentSongId = id;
+      view = 'song';
+      paint();
+    },
+    onBack: () => {
+      view = 'home';
+      paint();
+    },
+    onOpenSettings: () => {
+      view = 'settings';
+      paint();
+    },
+    onCloseSettings: () => {
+      view = 'home';
+      paint();
+    },
+    onSettingsChange: (patch) => {
+      Object.assign(settings, patch);
+      saveSettings(settings);
+      if (patch.theme) applyTheme(settings.theme);
+      paint();
+    },
+    onFavoritesChange: (ids) => {
+      favorites = ids;
+      context.favorites = ids;
+      paint();
+    },
   };
 
-  render();
-  window.addEventListener('resize', render);
-  window.addEventListener('orientationchange', render);
+  try {
+    meta = await repo.meta();
+    context.meta = meta;
+    badge.textContent =
+      meta.dataVersion === 'demo'
+        ? 'демо-данные'
+        : `${meta.count.toLocaleString('ru-RU')} песен · ${meta.dataVersion}`;
+  } catch (error) {
+    badge.textContent = 'база недоступна';
+    badge.title = error instanceof Error ? error.message : String(error);
+  }
+
+  function paint(): void {
+    const width = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+    const layout = layoutClass(width);
+    document.body.dataset.layout = layout;
+
+    const isCompact = layout === 'compact';
+    const showList = isCompact ? view === 'home' : true;
+    const showSong = isCompact ? view === 'song' && currentSongId !== null : currentSongId !== null;
+
+    mainEl.innerHTML = `
+      <section class="pane pane--list" ${showList ? '' : 'hidden'}><div class="slot" id="home-slot"></div></section>
+      <section class="pane pane--song" ${showSong ? '' : 'hidden'}><div class="slot" id="song-slot"></div></section>
+    `;
+
+    if (showList) {
+      const slot = mainEl.querySelector<HTMLElement>('#home-slot');
+      if (slot) renderHome(slot, context);
+    }
+
+    if (showSong && currentSongId !== null) {
+      const slot = mainEl.querySelector<HTMLElement>('#song-slot');
+      if (slot) renderSong(slot, context, currentSongId, isCompact);
+    }
+
+    if (view === 'settings') {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      const panel = document.createElement('div');
+      panel.className = 'overlay__panel';
+      overlay.append(panel);
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) context.onCloseSettings();
+      });
+      document.body.append(overlay);
+      renderSettings(panel, context);
+      requestAnimationFrame(() => overlay.classList.add('overlay--visible'));
+    } else {
+      document.querySelectorAll('.overlay').forEach((element) => element.remove());
+    }
+  }
+
+  root.querySelector<HTMLButtonElement>('#open-settings')?.addEventListener('click', () => {
+    context.onOpenSettings();
+  });
+
+  paint();
+
+  let lastLayout = layoutClass(window.innerWidth);
+  window.addEventListener('resize', () => {
+    const next = layoutClass(window.innerWidth);
+    if (next !== lastLayout) {
+      lastLayout = next;
+      paint();
+    }
+  });
 }
 
-function widthBucketLabel(): string {
-  const bucket = document.body.dataset.layout;
-  if (bucket === 'layout-expanded') return 'планшет / широкий экран';
-  if (bucket === 'layout-medium') return 'планшет 7–8"';
-  return 'телефон';
+function safeFavorites(): number[] {
+  try {
+    return loadFavorites();
+  } catch {
+    return [];
+  }
 }

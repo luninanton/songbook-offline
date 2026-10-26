@@ -1,26 +1,41 @@
 :root {
-  --bg: #f6f7f5;
+  --bg: #f5f7f5;
   --bg-elevated: #ffffff;
-  --text: #1b1f1d;
-  --text-muted: #5c6360;
+  --bg-muted: #edf1ee;
+  --text: #1a1f1c;
+  --text-muted: #5a645f;
   --accent: #12372a;
+  --accent-soft: #dceee5;
   --accent-text: #ffffff;
-  --border: #dfe4e0;
+  --border: #dde4df;
   --radius: 14px;
-  --page-padding: 16px;
-  --content-max: 1200px;
-  color-scheme: light dark;
+  --page-padding: 14px;
+  --song-font: 16px;
+}
+
+body[data-theme='dark'] {
+  --bg: #0f1513;
+  --bg-elevated: #17201d;
+  --bg-muted: #1e2925;
+  --text: #e9efec;
+  --text-muted: #98a6a0;
+  --accent: #2f7d5f;
+  --accent-soft: #1f3a30;
+  --accent-text: #ffffff;
+  --border: #27322d;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101614;
-    --bg-elevated: #18201d;
+  body[data-theme='auto'] {
+    --bg: #0f1513;
+    --bg-elevated: #17201d;
+    --bg-muted: #1e2925;
     --text: #e9efec;
-    --text-muted: #9aa8a2;
+    --text-muted: #98a6a0;
     --accent: #2f7d5f;
+    --accent-soft: #1f3a30;
     --accent-text: #ffffff;
-    --border: #2a3532;
+    --border: #27322d;
   }
 }
 
@@ -32,11 +47,12 @@ html,
 body {
   margin: 0;
   padding: 0;
-  min-height: 100%;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -44,6 +60,7 @@ body {
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow: hidden;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -55,17 +72,16 @@ body {
   min-height: 0;
 }
 
+/* ---------- шапка ---------- */
 .app-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px var(--page-padding);
+  padding: 10px var(--page-padding);
   background: var(--accent);
   color: var(--accent-text);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex: 0 0 auto;
 }
 
 .app-bar__title {
@@ -77,6 +93,12 @@ body {
   min-width: 0;
 }
 
+.app-bar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-bar__logo {
   display: inline-flex;
   align-items: center;
@@ -86,7 +108,12 @@ body {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.18);
   font-size: 12px;
-  letter-spacing: 0.5px;
+}
+
+.app-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .app-bar__badge {
@@ -97,118 +124,472 @@ body {
   white-space: nowrap;
 }
 
+/* ---------- разметка панелей ---------- */
 .app-main {
   flex: 1;
-  width: 100%;
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: var(--page-padding);
+  min-height: 0;
   display: grid;
-  gap: 12px;
-  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
 }
 
-.card {
-  background: var(--bg-elevated);
+.pane {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pane[hidden] {
+  display: none;
+}
+
+.pane--list {
+  border-right: 1px solid var(--border);
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: var(--page-padding);
+  gap: 10px;
+}
+
+/* планшет: список слева, песня справа */
+body[data-layout='expanded'] .app-main,
+body[data-layout='medium'] .app-main {
+  grid-template-columns: minmax(280px, 38%) minmax(0, 1fr);
+}
+
+body[data-layout='expanded'] .slot,
+body[data-layout='medium'] .slot {
+  padding: 16px 18px;
+}
+
+/* ---------- поиск ---------- */
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: calc(-1 * var(--page-padding));
+  background: var(--bg);
+  padding: var(--page-padding) 0 6px;
+  z-index: 2;
+}
+
+.search__input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 16px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  outline: none;
 }
 
-.card--muted {
-  opacity: 0.85;
+.search__input:focus {
+  border-color: var(--accent);
 }
 
-.card__title {
-  margin: 0 0 8px;
-  font-size: 20px;
+.segmented {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.segmented__button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.segmented__button--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* ---------- список ---------- */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.list__empty {
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.list__footer {
+  padding: 10px 2px 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.song-row:active {
+  background: var(--bg-muted);
+}
+
+.song-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.song-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-row__artist {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-row__key {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+
+/* ---------- кнопки ---------- */
+.button {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.button:active {
+  background: var(--bg-muted);
+}
+
+.button--icon {
+  min-width: 40px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.button--key {
+  min-width: 62px;
+  font-weight: 700;
+  font-size: 16px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.button--toggle {
+  font-size: 13px;
+}
+
+.button--toggle-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.button--ghost {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button--active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.select {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ---------- экран песни ---------- */
+.song {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100%;
+}
+
+.song__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.song__head .icon-button {
+  background: var(--bg-muted);
+}
+
+.song__titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.song__title {
+  margin: 0;
+  font-size: 18px;
   line-height: 1.25;
 }
 
-.card__subtitle {
-  margin: 0 0 10px;
-  font-size: 15px;
+.song__meta {
+  margin-top: 2px;
+  font-size: 13px;
   color: var(--text-muted);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--bg-muted);
+  position: sticky;
+  top: calc(-1 * var(--page-padding));
+  z-index: 2;
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar__label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.song__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 40px;
+}
+
+.song__text {
+  margin: 0;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--song-font);
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+  color: var(--text);
+}
+
+body[data-layout='expanded'] .song__text {
+  column-gap: 32px;
+  column-rule: 1px solid var(--border);
+}
+
+/* ---------- клавиатура тональностей ---------- */
+.keypad-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 40;
+  padding: 16px;
+}
+
+.keypad-overlay[hidden] {
+  display: none;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 460px;
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+}
+
+.keypad__key {
+  padding: 14px 0;
+  font-size: 16px;
   font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.keypad__key--reset {
+  grid-column: span 4;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* ---------- настройки ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.overlay__panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings__head .icon-button {
+  background: var(--bg-muted);
+}
+
+.settings__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.settings__subtitle {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.card__text {
-  margin: 0 0 14px;
-  font-size: 15px;
+.settings__text {
+  margin: 0;
+  font-size: 13px;
   line-height: 1.5;
+}
+
+.settings__text--muted {
   color: var(--text-muted);
 }
 
-.env {
-  margin: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.env__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 14px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.env__row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.env__label {
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.env__value {
-  margin: 0;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.screen-list {
-  margin: 0;
-  padding-left: 18px;
+.settings__section {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
   display: grid;
   gap: 6px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-size: 14px;
-  color: var(--text-muted);
 }
 
-.app-footer {
-  padding: 8px var(--page-padding) 12px;
-  text-align: center;
+.field--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
 }
 
-.app-footer__text {
+.field__label {
+  font-size: 14px;
+}
+
+.field__hint {
   font-size: 12px;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
 
-/* Планшеты: 7–8" */
-body[data-layout='layout-medium'] {
-  --page-padding: 20px;
-  --content-max: 900px;
-}
-
-/* Планшеты 10"+ и широкие экраны */
-body[data-layout='layout-expanded'] {
-  --page-padding: 24px;
-  --content-max: 1200px;
-}
-
-body[data-layout='layout-expanded'] .app-main {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  align-items: start;
-}
-
-body[data-layout='layout-medium'] .app-main {
-  grid-template-columns: minmax(0, 1fr);
+.range {
+  width: 100%;
 }

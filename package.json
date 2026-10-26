@@ -13,8 +13,11 @@
     "test:watch": "vitest",
     "crawl": "tsx scripts/crawl.ts",
     "db:build": "tsx scripts/build-db.ts",
+    "db:install": "node scripts/install-db.mjs",
+    "verify:transpose": "tsx scripts/verify-transpose.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:apk:full": "npm run db:build && npm run db:install && npm run android:apk",
     "android:open": "cap open android"
   },
   "dependencies": {
@@ -28,6 +31,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "cheerio": "^1.0.0",
+    "jsdom": "^29.1.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",

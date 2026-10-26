@@ -20,6 +20,9 @@ data/cache/
 data/*.db
 data/*.gz
 
+# база внутри Android-проекта (кладётся скриптом npm run db:install)
+android/app/src/main/assets/songs.db.gz
+
 # misc
 .DS_Store
 *.log
