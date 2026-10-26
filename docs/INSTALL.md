@@ -37,14 +37,45 @@ APK — `android/app/build/outputs/apk/debug/app-debug.apk` (~60 МБ, база 
 Проверить то же самое в ландшафте: список слева, песня справа, аккорды не
 обрезаются, панель транспонирования доступна без прокрутки.
 
-## 4. Сборка release-APK (если нужно ставить без предупреждений)
+## 4. Release-сборка (подписана, ставится без предупреждений)
+
+Ключ уже создан: `android/holychords-release.keystore`, параметры — `android/keystore.properties`
+(оба файла в `.gitignore`). Сертификат: `CN=Songbook Offline`.
 
 ```bash
-keytool -genkeypair -v -keystore holychords.keystore -alias holychords \
-  -keyalg RSA -keysize 2048 -validity 10000 -storepass ПАРОЛЬ -keypass ПАРОЛЬ
-
-# android/app/build.gradle: добавить signingConfigs.release и buildTypes.release
-cd android && ./gradlew assembleRelease
+npm run android:apk:release        # web + cap sync + gradle assembleRelease
+# результат: android/app/build/outputs/apk/release/app-release.apk
 ```
 
-Ключ хранить отдельно от репозитория (`*.keystore` уже в .gitignore).
+### ⚠️ Резервная копия ключа — обязательна
+
+Пароль к ключу лежит в `android/keystore.properties`. Если потерять keystore или пароль,
+обновить уже установленное приложение будет невозможно — придётся удалять его и ставить заново.
+
+Сделай копию (в защищённое место, не в git):
+
+```bash
+mkdir -p ~/Documents/backup-songbook
+cp android/holychords-release.keystore android/keystore.properties ~/Documents/backup-songbook/
+```
+
+### Важно про переход с debug на release
+
+Подписи debug и release несовместимы: приложение нужно один раз удалить и поставить
+release-версию. База песен лежит внутри APK, поэтому данные не теряются — но избранное
+и настройки (они в локальном хранилище приложения) сбросятся.
+
+Проверить подпись:
+
+```bash
+$ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs \
+  android/app/build/outputs/apk/release/app-release.apk
+```
+
+## 5. Бэкап исходных данных
+
+Базу и снимки стоит хранить отдельно от репозитория (они не в git):
+
+```bash
+cp data/build/songs.db data/raw/ru.jsonl ~/Documents/backup-songbook/
+```

@@ -20,6 +20,7 @@
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:apk:full": "npm run db:build && npm run db:install && npm run android:apk",
+    "android:apk:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:open": "cap open android"
   },
   "dependencies": {

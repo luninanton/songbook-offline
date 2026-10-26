@@ -31,7 +31,11 @@ android/app/src/main/assets/songs.db.gz
 .env.local
 .idea/
 .vscode/
+# ключи подписи и пароли (в git не попадают)
+android/holychords-release.keystore
+android/keystore.properties
 *.keystore
+*.jks
 
 # скриншоты содержат тексты песен — храним локально, не в git
 docs/screenshots/
