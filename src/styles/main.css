@@ -158,10 +158,50 @@ body {
   gap: 10px;
 }
 
-/* планшет: список слева, песня справа */
+/* планшет: список слева, разделитель, песня справа */
 body[data-layout='expanded'] .app-main,
 body[data-layout='medium'] .app-main {
-  grid-template-columns: minmax(280px, 38%) minmax(0, 1fr);
+  grid-template-columns: var(--list-width, 380px) 12px minmax(0, 1fr);
+}
+
+/* список свёрнут — песня занимает всю ширину (одна колонка) */
+body[data-layout='expanded'] .app-main.app-main--collapsed,
+body[data-layout='medium'] .app-main.app-main--collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-main--collapsed .pane--list,
+.app-main--collapsed .splitter {
+  display: none;
+}
+
+.splitter {
+  position: relative;
+  cursor: col-resize;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  touch-action: none;
+}
+
+.splitter[hidden] {
+  display: none;
+}
+
+.splitter::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 42px;
+  transform: translate(-50%, -50%);
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.splitter:hover::after {
+  background: var(--accent);
 }
 
 body[data-layout='expanded'] .slot,
@@ -713,4 +753,63 @@ body[data-layout='expanded'] .song__text {
   background: var(--accent-soft);
   color: var(--text-muted);
   margin-left: 6px;
+}
+
+/* ---------- диаграмма аккорда ---------- */
+.song__text .chord {
+  cursor: pointer;
+}
+
+.chord-sheet {
+  max-width: 360px;
+  text-align: center;
+}
+
+.chord-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.chord-sheet__head .icon-button {
+  background: var(--bg-muted);
+}
+
+.chord-sheet__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.chord-sheet__svg {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  color: var(--text);
+}
+
+.chord-sheet__fingering {
+  margin: 6px 0 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.chord-sheet__notes {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.chord-sheet__empty {
+  padding: 16px 8px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Атрибут hidden должен побеждать display у классов вроде .icon-button */
+[hidden] {
+  display: none !important;
 }

@@ -1,4 +1,5 @@
-import { detectNotation, isChordLine, noteToSemitone } from '../core/chords';
+import { detectNotation, isChordLine, noteToSemitone, type Notation } from '../core/chords';
+import { chordDiagramSvg } from './chord-diagram';
 import { renderSong as buildSongView, transposeKey } from '../core/transpose';
 import { toggleFavorite } from '../app/settings';
 import { removeUserSong } from '../app/user-songs';
@@ -100,6 +101,13 @@ function paint(
   const metaEl = requireEl<HTMLElement>(root, '#song-meta');
   const keyLabel = requireEl<HTMLElement>(root, '#key-label');
   const textEl = requireEl<HTMLElement>(root, '#song-text');
+
+  // Тап по аккорду — показываем аппликатуру
+  textEl.addEventListener('click', (event) => {
+    const chordEl = (event.target as HTMLElement).closest<HTMLElement>('.chord');
+    if (!chordEl) return;
+    openChordSheet(chordEl.textContent?.trim() ?? '', notation);
+  });
   const scrollEl = requireEl<HTMLElement>(root, '#song-scroll');
   const favoriteBtn = requireEl<HTMLButtonElement>(root, '#favorite');
   const toggleChordsBtn = requireEl<HTMLButtonElement>(root, '#toggle-chords');
@@ -289,6 +297,32 @@ function paint(
   });
 
   update();
+}
+
+function openChordSheet(chord: string, notation: Notation): void {
+  if (!chord) return;
+
+  document.querySelector('.chord-sheet-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay chord-sheet-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'overlay__panel chord-sheet';
+  panel.innerHTML = `
+    <div class="chord-sheet__head">
+      <h2 class="chord-sheet__title">${escapeHtml(chord)}</h2>
+      <button class="icon-button" id="close-chord" title="Закрыть">✕</button>
+    </div>
+    ${chordDiagramSvg(chord, notation)}
+  `;
+
+  overlay.append(panel);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) overlay.remove();
+  });
+  document.body.append(overlay);
+  panel.querySelector<HTMLButtonElement>('#close-chord')?.addEventListener('click', () => overlay.remove());
 }
 
 function requireEl<T extends HTMLElement>(root: ParentNode, selector: string): T {

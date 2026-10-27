@@ -52,6 +52,7 @@ export async function mountApp(root: HTMLElement): Promise<void> {
         <span class="app-bar__name">Holychords Офлайн</span>
       </div>
       <div class="app-bar__actions">
+        <button class="icon-button" id="toggle-list" title="Свернуть список" aria-label="Свернуть список" hidden>☰</button>
         <span class="app-bar__badge" id="db-badge">база…</span>
         <button class="icon-button" id="open-settings" title="Настройки" aria-label="Настройки">⚙</button>
       </div>
@@ -144,12 +145,26 @@ export async function mountApp(root: HTMLElement): Promise<void> {
     document.body.dataset.layout = layout;
 
     const isCompact = layout === 'compact';
-    const showList = isCompact ? view === 'home' : true;
-    const showSong = isCompact ? view === 'song' && currentSongId !== null : currentSongId !== null;
+    const collapsed = !isCompact && settings.listCollapsed;
+    const showList = isCompact ? view === 'home' : !collapsed;
+    // На планшете панель песни видна всегда: иначе при свёрнутом списке экран пустой
+    const showSongPane = isCompact ? view === 'song' && currentSongId !== null : true;
+
+    const toggleButton = root.querySelector<HTMLButtonElement>('#toggle-list');
+    if (toggleButton) {
+      toggleButton.hidden = isCompact;
+      toggleButton.textContent = collapsed ? '☰' : '⇤';
+      toggleButton.title = collapsed ? 'Показать список' : 'Свернуть список';
+      toggleButton.classList.toggle('icon-button--active', collapsed);
+    }
+
+    mainEl.style.setProperty('--list-width', `${Math.round(settings.listWidth)}px`);
+    mainEl.classList.toggle('app-main--collapsed', collapsed);
 
     mainEl.innerHTML = `
-      <section class="pane pane--list" ${showList ? '' : 'hidden'}><div class="slot" id="home-slot"></div></section>
-      <section class="pane pane--song" ${showSong ? '' : 'hidden'}><div class="slot" id="song-slot"></div></section>
+      ${showList || isCompact ? `<section class="pane pane--list" ${showList ? '' : 'hidden'}><div class="slot" id="home-slot"></div></section>` : ''}
+      ${!collapsed && !isCompact ? '<div class="splitter" id="splitter" role="separator" aria-orientation="vertical" title="Потяните, чтобы изменить ширину"></div>' : ''}
+      <section class="pane pane--song" ${showSongPane ? '' : 'hidden'}><div class="slot" id="song-slot"></div></section>
     `;
 
     if (showList) {
@@ -157,9 +172,17 @@ export async function mountApp(root: HTMLElement): Promise<void> {
       if (slot) renderHome(slot, context);
     }
 
-    if (showSong && currentSongId !== null) {
+    if (showSongPane) {
       const slot = mainEl.querySelector<HTMLElement>('#song-slot');
-      if (slot) renderSong(slot, context, currentSongId, isCompact);
+      if (slot) {
+        if (currentSongId !== null) {
+          renderSong(slot, context, currentSongId, isCompact);
+        } else {
+          slot.innerHTML = `<div class="list__empty">${
+            collapsed ? 'Список свёрнут — нажмите ☰ в шапке' : 'Выберите песню в списке'
+          }</div>`;
+        }
+      }
     }
 
     if (view === 'settings' || formOpen) {
@@ -235,6 +258,41 @@ export async function mountApp(root: HTMLElement): Promise<void> {
 
   root.querySelector<HTMLButtonElement>('#open-settings')?.addEventListener('click', () => {
     context.onOpenSettings();
+  });
+
+  // Свернуть / показать список песен (планшет)
+  root.querySelector<HTMLButtonElement>('#toggle-list')?.addEventListener('click', () => {
+    context.onSettingsChange({ listCollapsed: !settings.listCollapsed });
+  });
+
+  // Перетаскивание разделителя меняет ширину списка
+  mainEl.addEventListener('pointerdown', (event) => {
+    const target = event.target as HTMLElement;
+    if (!target.classList.contains('splitter')) return;
+
+    const mainRect = mainEl.getBoundingClientRect();
+    const minWidth = 220;
+    const maxWidth = Math.max(minWidth, mainRect.width - 360);
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      const width = Math.min(maxWidth, Math.max(minWidth, moveEvent.clientX - mainRect.left));
+      mainEl.style.setProperty('--list-width', `${Math.round(width)}px`);
+    };
+
+    const onUp = (): void => {
+      const width = Number.parseInt(
+        mainEl.style.getPropertyValue('--list-width').replace('px', ''),
+        10,
+      );
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (Number.isFinite(width)) {
+        context.onSettingsChange({ listWidth: width, listCollapsed: false });
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   });
 
   paint();

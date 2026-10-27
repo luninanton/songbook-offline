@@ -7,6 +7,10 @@ export interface Settings {
   showChords: boolean;
   highlightChords: boolean;
   wifiOnlyUpdates: boolean;
+  /** Ширина списка песен на планшете, px */
+  listWidth: number;
+  /** Список свёрнут (планшет) */
+  listCollapsed: boolean;
 }
 
 export interface Playlist {
@@ -26,6 +30,8 @@ export const DEFAULT_SETTINGS: Settings = {
   showChords: true,
   highlightChords: true,
   wifiOnlyUpdates: true,
+  listWidth: 380,
+  listCollapsed: false,
 };
 
 function readJson<T>(key: string, fallback: T): T {

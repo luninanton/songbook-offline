@@ -174,6 +174,7 @@ describe('ui: редактирование своей песни', () => {
 
     expect(root.querySelectorAll('.song-row').length).toBe(1);
   });
+});
 
 describe('ui: подсказки в форме своей песни', () => {
   afterEach(() => {
@@ -245,4 +246,51 @@ describe('ui: подсказки в форме своей песни', () => {
   });
 });
 
+
+describe('ui: диаграмма аккорда', () => {
+  it('открывает аппликатуру по тапу на аккорд и закрывается', async () => {
+    const root = await mount();
+    (root.querySelector('.song-row') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 40));
+
+    const chord = root.querySelector('#song-text .chord') as HTMLElement | null;
+    expect(chord).not.toBeNull();
+    chord?.click();
+
+    const sheet = document.querySelector('.chord-sheet');
+    expect(sheet).not.toBeNull();
+    expect((sheet?.querySelector('.chord-sheet__title')?.textContent ?? '').length).toBeGreaterThan(0);
+    expect(sheet?.querySelector('svg.chord-sheet__svg')).not.toBeNull();
+
+    (document.querySelector('#close-chord') as HTMLButtonElement).click();
+    expect(document.querySelector('.chord-sheet')).toBeNull();
+  });
+});
+
+describe('ui: сворачивание списка на планшете', () => {
+  it('кнопка ☰ убирает список, показывает подсказку и запоминает состояние', async () => {
+    const root = await mount();
+
+    const toggle = root.querySelector<HTMLButtonElement>('#toggle-list') as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    expect(toggle.hidden).toBe(false);
+
+    expect(root.querySelectorAll('.song-row').length).toBeGreaterThan(0);
+    expect(root.querySelector('.splitter')).not.toBeNull();
+
+    toggle.click();
+    await new Promise((done) => setTimeout(done, 60));
+
+    // список и разделитель убраны из разметки, справа — подсказка
+    expect(root.querySelector('.pane--list')).toBeNull();
+    expect(root.querySelector('.splitter')).toBeNull();
+    expect(root.querySelector('#song-slot')?.textContent).toContain('Список свёрнут');
+    expect(JSON.parse(localStorage.getItem('hc.settings.v1') ?? '{}').listCollapsed).toBe(true);
+
+    // возвращаем список обратно
+    (root.querySelector('#toggle-list') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 60));
+    expect(root.querySelectorAll('.song-row').length).toBeGreaterThan(0);
+    expect(root.querySelector('.splitter')).not.toBeNull();
+  });
 });
