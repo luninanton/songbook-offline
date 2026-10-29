@@ -813,3 +813,63 @@ body[data-layout='expanded'] .song__text {
 [hidden] {
   display: none !important;
 }
+
+/* ---------- вкладки и пианино в окне аккорда ---------- */
+.chord-sheet__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.chord-sheet__actions .icon-button {
+  background: var(--bg-muted);
+}
+
+.chord-sheet__actions .icon-button[hidden] {
+  display: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tab--active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chord-sheet__section + .chord-sheet__section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.chord-sheet__subtitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.chord-sheet__svg--piano {
+  max-width: 100%;
+}
+
+.chord-sheet--both {
+  max-width: 420px;
+}

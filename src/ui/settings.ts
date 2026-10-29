@@ -30,6 +30,15 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
       </label>
 
       <label class="field">
+        <span class="field__label">Аппликатура аккордов</span>
+        <select class="select" id="instrument">
+          <option value="both">гитара и пианино</option>
+          <option value="guitar">только гитара</option>
+          <option value="piano">только пианино</option>
+        </select>
+      </label>
+
+      <label class="field">
         <span class="field__label">Колонок на широком экране</span>
         <select class="select" id="columns">
           <option value="1">одна</option>
@@ -89,6 +98,7 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
   const fontInput = requireEl<HTMLInputElement>(root, '#font');
   const fontValue = requireEl<HTMLElement>(root, '#font-value');
   const columnsSelect = requireEl<HTMLSelectElement>(root, '#columns');
+  const instrumentSelect = requireEl<HTMLSelectElement>(root, '#instrument');
   const chordsCheckbox = requireEl<HTMLInputElement>(root, '#show-chords');
   const dbInfo = requireEl<HTMLElement>(root, '#db-info');
 
@@ -102,6 +112,7 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
 
   themeSelect.value = settings.theme;
   columnsSelect.value = String(settings.columns);
+  instrumentSelect.value = settings.instrument;
 
   dbInfo.innerHTML = meta
     ? `Песен: <strong>${meta.count.toLocaleString('ru-RU')}</strong> · с аккордами: <strong>${meta.withChords.toLocaleString('ru-RU')}</strong><br />
@@ -125,6 +136,12 @@ export function renderSettings(root: HTMLElement, context: AppContext): void {
 
   columnsSelect.addEventListener('change', () => {
     context.onSettingsChange({ columns: Number(columnsSelect.value) as 1 | 2 | 3 });
+  });
+
+  instrumentSelect.addEventListener('change', () => {
+    context.onSettingsChange({
+      instrument: instrumentSelect.value as 'guitar' | 'piano' | 'both',
+    });
   });
 
   chordsCheckbox.addEventListener('change', () => {

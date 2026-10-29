@@ -7,10 +7,10 @@ import { DEFAULT_SETTINGS } from '../../app/settings';
  * Smoke-тест интерфейса: монтируем приложение на демо-данных и проверяем,
  * что список, экран песни и транспонирование работают (без реальной базы).
  */
-async function mount(): Promise<HTMLElement> {
+async function mount(overrides: Record<string, unknown> = {}): Promise<HTMLElement> {
   document.body.innerHTML = '<div id="app"></div>';
   localStorage.clear();
-  Object.assign(localStorage, {});
+  localStorage.setItem('hc.settings.v1', JSON.stringify({ ...DEFAULT_SETTINGS, ...overrides }));
   const root = document.getElementById('app') as HTMLElement;
   await mountApp(root);
   // даём отработать асинхронной загрузке списка
@@ -293,4 +293,50 @@ describe('ui: сворачивание списка на планшете', () =
     expect(root.querySelectorAll('.song-row').length).toBeGreaterThan(0);
     expect(root.querySelector('.splitter')).not.toBeNull();
   });
+
+describe('ui: пианино и звук в окне аккорда', () => {
+  async function openChord(overrides: Record<string, unknown> = {}): Promise<HTMLElement> {
+    const root = await mount(overrides);
+    (root.querySelector('.song-row') as HTMLButtonElement).click();
+    await new Promise((done) => setTimeout(done, 40));
+    (root.querySelector('#song-text .chord') as HTMLElement).click();
+    await new Promise((done) => setTimeout(done, 30));
+    return root;
+  }
+
+  it('по умолчанию показывает и гитару, и пианино', async () => {
+    await openChord();
+
+    expect(document.querySelector('.chord-sheet__body svg.chord-sheet__svg')).not.toBeNull();
+    expect(document.querySelector('svg.chord-sheet__svg--piano')).not.toBeNull();
+    expect(document.querySelectorAll('.chord-sheet__section').length).toBe(2);
+    expect(document.body.textContent).toContain('Пианино');
+  });
+
+  it('в режиме «только пианино» открывает вкладку с клавишами', async () => {
+    await openChord({ instrument: 'piano' });
+
+    const piano = document.querySelector('svg.chord-sheet__svg--piano');
+    expect(piano).not.toBeNull();
+    // клавиши нарисованы: 15 белых + чёрные
+    expect((piano?.querySelectorAll('rect').length ?? 0)).toBeGreaterThan(15);
+
+    const activeTab = document.querySelector('.tab--active');
+    expect(activeTab?.textContent).toContain('Пианино');
+
+    // переключаемся на гитару
+    (document.querySelector('[data-tab="guitar"]') as HTMLButtonElement).click();
+    expect(document.querySelector('svg.chord-sheet__svg--piano')).toBeNull();
+    expect(document.querySelector('#chord-body svg')).not.toBeNull();
+  });
+
+  it('без WebAudio кнопка звука скрыта и ничего не падает', async () => {
+    await openChord();
+    const play = document.querySelector<HTMLButtonElement>('#play-chord');
+    expect(play).not.toBeNull();
+    // в jsdom AudioContext отсутствует — кнопка должна быть скрыта
+    expect(play?.hidden).toBe(true);
+  });
+});
+
 });

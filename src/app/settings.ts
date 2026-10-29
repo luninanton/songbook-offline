@@ -11,6 +11,8 @@ export interface Settings {
   listWidth: number;
   /** Список свёрнут (планшет) */
   listCollapsed: boolean;
+  /** Что показывать в окне аккорда: гитара, пианино или оба */
+  instrument: 'guitar' | 'piano' | 'both';
 }
 
 export interface Playlist {
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wifiOnlyUpdates: true,
   listWidth: 380,
   listCollapsed: false,
+  instrument: 'both',
 };
 
 function readJson<T>(key: string, fallback: T): T {

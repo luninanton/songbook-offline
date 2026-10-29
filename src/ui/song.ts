@@ -1,5 +1,7 @@
 import { detectNotation, isChordLine, noteToSemitone, type Notation } from '../core/chords';
 import { chordDiagramSvg } from './chord-diagram';
+import { pianoDiagramSvg } from './piano-diagram';
+import { isAudioAvailable, playChord, stopChord } from './chord-audio';
 import { renderSong as buildSongView, transposeKey } from '../core/transpose';
 import { toggleFavorite } from '../app/settings';
 import { removeUserSong } from '../app/user-songs';
@@ -106,7 +108,7 @@ function paint(
   textEl.addEventListener('click', (event) => {
     const chordEl = (event.target as HTMLElement).closest<HTMLElement>('.chord');
     if (!chordEl) return;
-    openChordSheet(chordEl.textContent?.trim() ?? '', notation);
+    openChordSheet(chordEl.textContent?.trim() ?? '', notation, context.settings.instrument);
   });
   const scrollEl = requireEl<HTMLElement>(root, '#song-scroll');
   const favoriteBtn = requireEl<HTMLButtonElement>(root, '#favorite');
@@ -299,30 +301,102 @@ function paint(
   update();
 }
 
-function openChordSheet(chord: string, notation: Notation): void {
+type ChordSheetTab = 'guitar' | 'piano';
+
+/** Выбранная вкладка запоминается на время работы приложения */
+let lastTab: ChordSheetTab = 'guitar';
+
+function openChordSheet(
+  chord: string,
+  notation: Notation,
+  instrument: 'guitar' | 'piano' | 'both' = 'both',
+): void {
   if (!chord) return;
 
   document.querySelector('.chord-sheet-overlay')?.remove();
+  stopChord();
+
+  const showBoth = instrument === 'both';
+  const activeTab: ChordSheetTab =
+    instrument === 'piano' ? 'piano' : instrument === 'guitar' ? 'guitar' : lastTab;
 
   const overlay = document.createElement('div');
   overlay.className = 'overlay chord-sheet-overlay';
 
   const panel = document.createElement('div');
-  panel.className = 'overlay__panel chord-sheet';
+  panel.className = `overlay__panel chord-sheet${showBoth ? ' chord-sheet--both' : ''}`;
   panel.innerHTML = `
     <div class="chord-sheet__head">
       <h2 class="chord-sheet__title">${escapeHtml(chord)}</h2>
-      <button class="icon-button" id="close-chord" title="Закрыть">✕</button>
+      <div class="chord-sheet__actions">
+        <button class="icon-button" id="play-chord" title="Проиграть аккорд" aria-label="Проиграть аккорд">▶</button>
+        <button class="icon-button" id="close-chord" title="Закрыть">✕</button>
+      </div>
     </div>
-    ${chordDiagramSvg(chord, notation)}
+    ${
+      showBoth
+        ? ''
+        : `<div class="tabs" id="chord-tabs">
+             <button class="tab" data-tab="guitar">Гитара</button>
+             <button class="tab" data-tab="piano">Пианино</button>
+           </div>`
+    }
+    <div class="chord-sheet__body" id="chord-body"></div>
   `;
 
   overlay.append(panel);
   overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) overlay.remove();
+    if (event.target === overlay) {
+      stopChord();
+      overlay.remove();
+    }
   });
   document.body.append(overlay);
-  panel.querySelector<HTMLButtonElement>('#close-chord')?.addEventListener('click', () => overlay.remove());
+
+  const body = panel.querySelector<HTMLElement>('#chord-body');
+
+  const renderBody = (tab: ChordSheetTab): void => {
+    if (!body) return;
+
+    if (showBoth) {
+      body.innerHTML = `
+        <div class="chord-sheet__section">
+          <h3 class="chord-sheet__subtitle">Гитара</h3>
+          ${chordDiagramSvg(chord, notation)}
+        </div>
+        <div class="chord-sheet__section">
+          <h3 class="chord-sheet__subtitle">Пианино</h3>
+          ${pianoDiagramSvg(chord, notation)}
+        </div>
+      `;
+      return;
+    }
+
+    body.innerHTML =
+      tab === 'piano' ? pianoDiagramSvg(chord, notation) : chordDiagramSvg(chord, notation);
+    lastTab = tab;
+
+    panel.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((button) => {
+      button.classList.toggle('tab--active', button.dataset.tab === tab);
+    });
+  };
+
+  renderBody(activeTab);
+
+  panel.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((button) => {
+    button.addEventListener('click', () => renderBody(button.dataset.tab as ChordSheetTab));
+  });
+
+  const playButton = panel.querySelector<HTMLButtonElement>('#play-chord');
+  if (playButton && !isAudioAvailable()) playButton.hidden = true;
+  playButton?.addEventListener('click', () => {
+    playChord(chord, notation);
+  });
+
+  panel.querySelector<HTMLButtonElement>('#close-chord')?.addEventListener('click', () => {
+    stopChord();
+    overlay.remove();
+  });
 }
 
 function requireEl<T extends HTMLElement>(root: ParentNode, selector: string): T {
