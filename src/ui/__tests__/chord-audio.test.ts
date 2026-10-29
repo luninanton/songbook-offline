@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { isAudioAvailable, playChord, stopChord } from '../chord-audio';
 
 /**
  * Проверка синтеза без настоящего звука: подменяем AudioContext заглушкой
- * и смотрим, какие частоты и сколько осцилляторов создаётся.
+ * и смотрим, какие частоты, сколько осцилляторов и какие узлы создаются.
  */
 class FakeParam {
   value = 0;
@@ -36,10 +36,22 @@ class FakeOscillator extends FakeNode {
 }
 
 const created: FakeOscillator[] = [];
+let convolvers = 0;
+
+class FakeBuffer {
+  constructor(private readonly channels: number, private readonly length: number) {}
+  getChannelData(): Float32Array {
+    return new Float32Array(this.length);
+  }
+  get numberOfChannels(): number {
+    return this.channels;
+  }
+}
 
 class FakeAudioContext {
   currentTime = 0;
   state = 'running';
+  sampleRate = 8000; // меньше и быстрее для теста
   destination = new FakeNode();
   resume(): Promise<void> {
     return Promise.resolve();
@@ -59,6 +71,15 @@ class FakeAudioContext {
     node.type = 'lowpass';
     node.frequency = new FakeParam();
     return node;
+  }
+  createConvolver(): FakeNode & { buffer: unknown } {
+    convolvers += 1;
+    const node = new FakeNode() as FakeNode & { buffer: unknown };
+    node.buffer = null;
+    return node;
+  }
+  createBuffer(channels: number, length: number): FakeBuffer {
+    return new FakeBuffer(channels, length);
   }
 }
 
@@ -89,6 +110,13 @@ describe('chord-audio: синтез аккорда', () => {
     expect(Math.round(lowest)).toBe(123); // B2
   });
 
+  it('строит реверберацию один раз на всё приложение', () => {
+    expect(convolvers).toBe(1);
+    playChord('Am');
+    playChord('Dm');
+    expect(convolvers).toBe(1);
+  });
+
   it('останавливает предыдущий аккорд перед новым', () => {
     created.length = 0;
     playChord('Am');
@@ -103,9 +131,5 @@ describe('chord-audio: синтез аккорда', () => {
     playChord('Em');
     stopChord();
     expect(created.every((oscillator) => oscillator.stopped)).toBe(true);
-
-    beforeEach(() => {
-      created.length = 0;
-    });
   });
 });
